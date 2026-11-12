@@ -102,7 +102,7 @@ export class Post {
   apply(p: Params, a: AtmoState, capture = false) {
     const q = capture ? 3 : p.postQuality;
     // night scenes get a photographic exposure lift so lit windows and neon read properly
-    const autoExp = lerp(1, 2.6, a.night) * lerp(1, 1.25, a.overcast * (1 - a.night));
+    const autoExp = lerp(1, 2.1, a.night) * lerp(1, 1.25, a.overcast * (1 - a.night));
     const u = this.grade.uniforms;
     u.get('uExposure')!.value = p.exposure * autoExp * 0.82;
     u.get('uContrast')!.value = p.contrast;

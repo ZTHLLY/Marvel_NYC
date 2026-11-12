@@ -245,7 +245,7 @@ const F_SURFACE = /* glsl */ `
   vec2 uvm = vFUv;
   vec3 albedo = vS1.rgb; float rough = 0.86; float metal = 0.0; vec3 emis = vec3(0.0);
   float pix = max(fwidth(uvm.x), fwidth(uvm.y));         // metres per pixel on this surface
-  float fine = 1.0 - smoothstep(0.015, 0.09, pix);        // brick-scale detail visibility
+  float fine = 1.0 - smoothstep(0.008, 0.04, pix);        // brick-scale detail visibility (fades before it can moiré)
   float n1 = vnoise(uvm * 0.31 + seed * 97.0);
   float n2 = vnoise(vec2(uvm.x * 2.3, uvm.y * 0.23) + seed * 31.0);
   if (surf < 0.5 || (surf > 7.5 && surf < 8.5)) {
@@ -394,7 +394,7 @@ const F_SURFACE = /* glsl */ `
         room = mix(room, vec3(0.6), smoothstep(0.15, 0.3, lodc));
       }
       float nightGain = mix(0.1, 1.0, smoothstep(0.0, 0.85, uNight)) * (isGround > 0.5 ? mix(3.0, 0.75, uNight) : 1.0);
-      vec3 interior = room * (lit * litCol * inten * 2.1 * nightGain + (1.0 - uNight) * 0.2 * (0.45 + 0.55 * rr2));
+      vec3 interior = room * (lit * litCol * inten * 2.6 * nightGain + (1.0 - uNight) * 0.2 * (0.45 + 0.55 * rr2));
       float fres = pow(1.0 - max(dot(V, wN), 0.0), 3.0);
       vec3 glassCol = vS2.rgb * (0.9 + 0.2 * rCell);
       vec3 gAlb = mix(glassCol * 0.42, glassCol * 0.85, curtain);
@@ -419,6 +419,9 @@ const F_SURFACE = /* glsl */ `
     vec2 wp = vFogWorld.xz;
     float rn = vnoise(wp * 0.21 + seed * 40.0); float rn2 = vnoise(wp * 2.7);
     albedo = vS6.rgb * (0.72 + 0.4 * rn) * (0.92 + 0.14 * rn2);
+    #ifdef FORGE_INSTANCED
+    albedo = mix(albedo, vec3(0.3, 0.29, 0.28) * (0.7 + 0.6 * h21(vec2(seed * 31.0, 4.0))), 0.6);
+    #endif
     albedo = mix(albedo, albedo * 0.7, smoothstep(0.55, 0.75, vnoise(wp * 0.07 + seed * 9.0)));   // patched repairs
     rough = 0.92;
   } else if (surf < 2.5) {       // trim / stone coping

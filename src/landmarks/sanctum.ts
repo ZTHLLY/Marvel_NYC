@@ -257,7 +257,7 @@ export function buildSanctum(palette: StylePalette, data: CityData): SanctumBuil
   };
   table(7.2, F - 1.25); table(9.9, F - 1.3);
   const leaf = pbr({ color: 0x3a5a2c, roughness: 0.9 });
-  for (const x of [SX0 + 0.55, 11.9]) { add(new THREE.BoxGeometry(0.9, 0.5, 0.42), green, x, 0.25, F - 0.5); const b = add(new THREE.IcosahedronGeometry(0.42, 1), leaf, x, 0.72, F - 0.5); b.scale.set(1.15, 0.75, 0.6); }
+  for (const x of [SX0 + 0.55, 11.9]) { add(new THREE.BoxGeometry(0.9, 0.5, 0.42), green, x, 0.25, F - 0.5); const b = add(new THREE.SphereGeometry(0.42, 12, 9), leaf, x, 0.72, F - 0.5); b.scale.set(1.15, 0.75, 0.6); }
   const board = signMaterial(signTexture({ w: 256, h: 384, bg: '#1b1b1b', lines: [{ text: 'TODAY', size: 46, y: 0.16, color: '#f2e9d0', weight: 700, font: 'Georgia' }, { text: 'time stone', size: 36, y: 0.4, color: '#9fe0a0', weight: 400, font: 'Georgia', italic: true }, { text: 'cold brew', size: 36, y: 0.53, color: '#9fe0a0', weight: 400, font: 'Georgia', italic: true }, { text: 'no refunds,', size: 26, y: 0.76, color: '#d8d0b8', weight: 400, font: 'Georgia' }, { text: 'no time loops', size: 26, y: 0.86, color: '#d8d0b8', weight: 400, font: 'Georgia' }] }), { night: 0.5, day: 0.1 });
   const sb = panel(0.62, 0.95, board); sb.position.set(12.3, 0.5, F - 2.3); sb.rotation.set(-0.2, Math.PI - 0.5, 0, 'YXZ'); extras.add(sb);
   // ---- street furniture on both kerbs
@@ -278,7 +278,7 @@ export function buildSanctum(palette: StylePalette, data: CityData): SanctumBuil
   const nb = add(new THREE.BoxGeometry(0.5, 1.15, 0.45), pbr({ color: 0xa01c16, roughness: 0.5, metalness: 0.3 }), 7.0, 0.575, STREET - SIDEWALK + 0.6);
   const nbf = panel(0.48, 1.1, bugleBox); nbf.position.set(7.0, 0.585, STREET - SIDEWALK + 0.6 - 0.23); nbf.rotation.y = Math.PI; extras.add(nbf); void nb;
   add(new THREE.BoxGeometry(0.6, 1.15, 0.55), pbr({ color: 0x1f3f7a, roughness: 0.45, metalness: 0.4 }), -6.2, 0.58, SIDEWALK - 0.7);      // mailbox
-  for (const [x, z] of [[-11.2, SIDEWALK - 0.6], [26.5, SIDEWALK - 0.6]]) { add(new THREE.CylinderGeometry(0.07, 0.09, 2.6, 8), pbr({ color: 0x2a221c, roughness: 0.9 }), x, 1.3, z); const c1 = add(new THREE.IcosahedronGeometry(1.5, 1), leaf, x, 3.6, z); c1.scale.set(1, 0.9, 1); const c2 = add(new THREE.IcosahedronGeometry(1.1, 1), leaf, x + 0.7, 4.3, z + 0.3); void c2; }
+  for (const [x, z] of [[-17.5, SIDEWALK - 0.6], [27.5, SIDEWALK - 0.6]]) { add(new THREE.CylinderGeometry(0.07, 0.09, 2.6, 8), pbr({ color: 0x2a221c, roughness: 0.9 }), x, 1.3, z); const c1 = add(new THREE.SphereGeometry(1.5, 14, 10), leaf, x, 3.6, z); c1.scale.set(1, 0.85, 1.05); const c2 = add(new THREE.SphereGeometry(1.1, 12, 9), leaf, x + 0.8, 4.3, z + 0.35); const c3 = add(new THREE.SphereGeometry(1.0, 12, 9), leaf, x - 0.7, 4.0, z - 0.5); void c2; void c3; }
 
   const body = facadeMesh(mb.build());
   group.add(body, extras);

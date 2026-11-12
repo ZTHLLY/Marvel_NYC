@@ -319,6 +319,23 @@ export async function buildDoctorStrange(): Promise<Hero> {
   const cloak = new THREE.Mesh(cloakGeometry(shoulderY), cloakMat);
   const collar = new THREE.Mesh(collarGeometry(shoulderY - 0.035), cloakMat);
   for (const c of [cloak, collar]) { c.castShadow = true; c.receiveShadow = true; hero.group.add(c); }
+  // tunic skirt: hides the mannequin's hip joints and gives the layered-robe silhouette
+  {
+    const hip = P('Hips');
+    const N = 28, rows = [[0.115, 0.185, 0.15], [-0.02, 0.2, 0.165], [-0.2, 0.225, 0.19], [-0.38, 0.25, 0.215]];
+    const pos: number[] = [], uvs: number[] = [], idx: number[] = [];
+    rows.forEach(([dy, rx, rz], j) => { for (let i = 0; i <= N; i++) { const a = (i / N) * Math.PI * 2 + Math.PI / 2; const f = 1 + 0.035 * Math.sin(a * 7) * j; pos.push(hip.x + Math.cos(a) * rx * f, hip.y + dy, hip.z + 0.012 + Math.sin(a) * rz * f); uvs.push(i / N, j / 3); } });
+    for (let j = 0; j < rows.length - 1; j++) for (let i = 0; i < N; i++) { const a = j * (N + 1) + i, b = a + 1, c = a + N + 2, d = a + N + 1; idx.push(a, b, d, b, c, d); }
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); sg.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); sg.setIndex(idx); sg.computeVertexNormals();
+    const skirtMat = extendMaterial(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, side: THREE.DoubleSide }), {
+      key: 'tunic-skirt', weather: false, vPars: 'varying vec2 vCUv;', vMain: 'vCUv = uv;', fPars: 'varying vec2 vCUv;',
+      fSurface: `{ vec3 t = vec3(0.03, 0.075, 0.17); float fold = vnoise(vec2(vCUv.x * 40.0, vCUv.y * 2.0));
+        vec3 c = mix(t, vec3(0.05, 0.12, 0.25), 0.4 * fold); c = mix(c, vec3(0.11, 0.06, 0.03) * (1.0 + 0.8 * step(0.5, fract(vCUv.y * 9.0))), step(vCUv.y, 0.26));
+        c = mix(c, vec3(0.07, 0.16, 0.32), step(0.965, vCUv.y)); diffuseColor.rgb = c * (0.9 + 0.14 * h21(floor(vCUv * 400.0))); roughnessFactor = 0.8; }`,
+    });
+    const skirt = new THREE.Mesh(sg, skirtMat); skirt.castShadow = true; skirt.receiveShadow = true; hero.group.add(skirt);
+  }
   // brass clasps
   const brass = pbr({ color: 0x9a7424, roughness: 0.35, metalness: 1 });
   for (const s of [-1, 1]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.012, 14), brass); c.rotation.x = Math.PI / 2; c.position.set(s * 0.115, shoulderY - 0.075, 0.105); hero.group.add(c); }

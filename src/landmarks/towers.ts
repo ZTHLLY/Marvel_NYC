@@ -51,39 +51,39 @@ export function buildAvengersTower(palette: StylePalette): { group: THREE.Group;
 
   // main shaft: leans gently uptown as it climbs
   const shaft = [
-    { y: 52, ring: ring(31, 19, 0) }, { y: 80, ring: ring(30.4, 18.9, 0) }, { y: 120, ring: ring(29, 18.5, -0.3) },
-    { y: 160, ring: ring(27.3, 18, -1) }, { y: 200, ring: ring(25.4, 17.3, -2.4) }, { y: 236, ring: ring(23.4, 16.4, -4.2) },
-    { y: 268, ring: ring(21.4, 15.2, -6.6) }, { y: 300, ring: ring(19.2, 13.2, -9.5) },
+    { y: 52, ring: ring(31, 19, 0) }, { y: 80, ring: ring(30.6, 19, 0) }, { y: 120, ring: ring(29.4, 18.6, -0.5) },
+    { y: 160, ring: ring(27.6, 18, -1.8) }, { y: 200, ring: ring(25.4, 17.2, -4) }, { y: 236, ring: ring(23, 16, -7) },
+    { y: 268, ring: ring(20.6, 14.4, -10.5) }, { y: 300, ring: ring(18, 12, -14.5) },
   ];
   geos.push(loftGeometry(shaft, glass, Surf.Wall, 0.42, 1.6, true, 300));
   // crown fin: a blade that continues the sweep to a point
   const fin = [
-    { y: 300, ring: ring(17.5, 7.6, -14.2, 2.6) }, { y: 318, ring: ring(15.6, 6.9, -14.9, 2.6) }, { y: 336, ring: ring(12.6, 5.8, -15.6, 2.5) },
-    { y: 352, ring: ring(8.6, 4.4, -16.1, 2.4) }, { y: 364, ring: ring(4.6, 2.8, -16.4, 2.2) }, { y: 371, ring: ring(1.4, 1.1, -16.5, 2) },
+    { y: 300, ring: ring(16.5, 5.2, -21, 2.6) }, { y: 322, ring: ring(14.6, 4.7, -21.8, 2.6) }, { y: 344, ring: ring(11.4, 3.9, -22.6, 2.5) },
+    { y: 364, ring: ring(7.4, 3.0, -23.2, 2.4) }, { y: 380, ring: ring(3.6, 2.0, -23.6, 2.2) }, { y: 392, ring: ring(1.0, 0.8, -23.8, 2) },
   ];
   geos.push(loftGeometry(fin, glass, Surf.Wall, 0.77, 1.6, true, 400));
   // penthouse lounge on the terrace
-  const [lx, lz] = P(0, -3.2);
+  const [lx, lz] = P(0, -9.5);
   geos.push(loftGeometry([{ y: 300, ring: superRing(lx, lz, 12, 5.4, 2.4, 40, GRID_ANGLE) }, { y: 308.5, ring: superRing(lx, lz, 11.2, 5, 2.4, 40, GRID_ANGLE) }], glass, Surf.Glass, 0.2, 0, true));
   // spire
-  const [sx, sz] = P(0, -16.5);
-  mb.style(glass, Surf.Steel, 0.5, 400); mb.cyl(sx, 371, sz, 0.7, 0.08, 24, 8, false);
+  const [sx, sz] = P(0, -23.8);
+  mb.style(glass, Surf.Steel, 0.5, 400); mb.cyl(sx, 392, sz, 0.6, 0.08, 26, 8, false);
 
   // landing deck: disc cantilevered downtown-side, bridge back to the terrace, raking struts
-  const padZ = 21.5, padY = 296.5, padR = 11.5;
+  const padZ = 14.5, padY = 296.5, padR = 11.5;
   const [px, pz] = P(0, padZ);
   mb.style(glass, Surf.Metal, 0.5, 400);
   mb.cyl(px, padY - 1.4, pz, padR * 0.55, padR, 1.4, 40, false);
   mb.style(glass, Surf.Dark, 0.5, 400);
   mb.cyl(px, padY, pz, padR, padR, 0.25, 40, true);
-  const [b0x, b0z] = P(0, 3), [b1x, b1z] = P(0, padZ - padR + 1.5);
+  const [b0x, b0z] = P(0, -3.5), [b1x, b1z] = P(0, padZ - padR + 1.5);
   mb.style(glass, Surf.Metal, 0.5, 400);
   mb.beam(b0x, padY + 0.1, b0z, b1x, padY + 0.1, b1z, 5.5, 0.5);
   for (const s of [-1, 1]) {
-    const [u0x, u0z] = P(s * 9, -1.5), [u1x, u1z] = P(s * 5.5, padZ - 2);
+    const [u0x, u0z] = P(s * 9, -5.5), [u1x, u1z] = P(s * 5.5, padZ - 2);
     mb.beam(u0x, 262, u0z, u1x, padY - 1.3, u1z, 1.1, 1.6);
     // deck-edge rails
-    const [r0x, r0z] = P(s * 2.7, 3), [r1x, r1z] = P(s * 2.7, padZ - padR + 2);
+    const [r0x, r0z] = P(s * 2.7, -3.5), [r1x, r1z] = P(s * 2.7, padZ - padR + 2);
     mb.beam(r0x, padY + 1.2, r0z, r1x, padY + 1.2, r1z, 0.08, 0.08);
   }
   geos.push(mb.build());
@@ -120,7 +120,7 @@ export function buildAvengersTower(palette: StylePalette): { group: THREE.Group;
     }
   };
   for (const y of [52.5, 96, 140, 184, 228, 268, 299]) band(shaft, y, 0.9, 0.25);
-  for (const y of [317, 335, 351]) band(fin, y, 0.6, 0.2);
+  for (const y of [321, 343, 363, 379]) band(fin, y, 0.6, 0.2);
   for (const g of bandGeo) group.add(new THREE.Mesh(g, cool));
   // pad lights
   const ringLight = new THREE.Mesh(new THREE.TorusGeometry(padR - 0.5, 0.12, 6, 64), cool);
@@ -138,14 +138,14 @@ export function buildAvengersTower(palette: StylePalette): { group: THREE.Group;
     m.position.set(x, y, z); m.rotation.y = YAW_DOWNTOWN + (flip ? Math.PI : 0);
     group.add(m);
   };
-  mkLogo(-14.9 + 7.35, 322, 17, false);
-  mkLogo(-14.9 - 7.35, 322, 17, true);
+  mkLogo(-21.9 + 4.85, 323, 19, false);
+  mkLogo(-21.9 - 4.85, 323, 19, true);
   const padLogo = panel(11, 11, logoMat);
   padLogo.rotation.set(-Math.PI / 2, 0, -YAW_DOWNTOWN); padLogo.position.set(px, padY + 0.29, pz);
   group.add(padLogo);
   // aviation beacon
   const tip = new THREE.Mesh(new THREE.SphereGeometry(0.9, 12, 8), beacon(0xff3a2a, 1.5, 6));
-  tip.position.set(sx, 395.5, sz);
+  tip.position.set(sx, 418.5, sz);
   group.add(tip);
   // a quinjet-like aircraft parked on the deck: sleek lifting-body silhouette
   const jet = new THREE.Group();

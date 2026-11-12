@@ -34,8 +34,8 @@ export interface AtmoState {
 interface Key { el: number; zenith: number; horizon: number; glow: number; sun: number; sunI: number; amb: number; ambI: number; fog: number }
 // Art-directed keyframes over sun elevation (degrees). Colours are sRGB hex.
 const KEYS: Key[] = [
-  { el: -18, zenith: 0x04060f, horizon: 0x161a2e, glow: 0x1c1b30, sun: 0x8fa8dc, sunI: 0.22, amb: 0x2a3558, ambI: 0.32, fog: 0x141829 },
-  { el: -9, zenith: 0x070d24, horizon: 0x243056, glow: 0x5a3d55, sun: 0x8fa8dc, sunI: 0.2, amb: 0x2e3d68, ambI: 0.42, fog: 0x1c2440 },
+  { el: -18, zenith: 0x04060f, horizon: 0x161a2e, glow: 0x1c1b30, sun: 0x8fa8dc, sunI: 0.12, amb: 0x2a3558, ambI: 0.2, fog: 0x141829 },
+  { el: -9, zenith: 0x070d24, horizon: 0x243056, glow: 0x5a3d55, sun: 0x8fa8dc, sunI: 0.12, amb: 0x2e3d68, ambI: 0.3, fog: 0x1c2440 },
   { el: -4.5, zenith: 0x0f2150, horizon: 0x46578c, glow: 0xd97b4e, sun: 0x9db4e0, sunI: 0.12, amb: 0x3f5590, ambI: 0.62, fog: 0x35426a },
   { el: -1, zenith: 0x21407c, horizon: 0x8a7d9a, glow: 0xff8a45, sun: 0xff6a30, sunI: 0.5, amb: 0x5f6f9c, ambI: 0.72, fog: 0x6c6c8c },
   { el: 2.5, zenith: 0x2c5398, horizon: 0xe3a273, glow: 0xffa050, sun: 0xff9550, sunI: 3.4, amb: 0x7888ae, ambI: 0.78, fog: 0x9c93a6 },

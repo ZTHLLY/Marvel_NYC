@@ -112,7 +112,7 @@ export async function buildWorldExtras(engine: Engine, data: CityData, ground: G
     heroGroup.visible = p.superheroVisibility >= 0.5;
     if (!prev || prev.heroVariant !== p.heroVariant) anchors();
     if (p.marvelDetail !== lastDetail) { lastDetail = p.marvelDetail; boards.apply(p.marvelDetail); }
-    for (const l of sanctum.lights) l.intensity = a.night * 420;
+    for (const l of sanctum.lights) l.intensity = a.night * 38;
     const rain = p.weather === 'rain' ? Math.min(1, p.wetness * 1.2) : 0;
     const snow = p.weather === 'snow' ? Math.min(1, 0.25 + p.snowCoverage) : 0;
     fx.apply(rain, snow, a.fogColor.clone().lerp(new THREE.Color(1, 1, 1), 0.45).multiplyScalar(0.5 + 0.5 * (1 - a.night)), a.night);

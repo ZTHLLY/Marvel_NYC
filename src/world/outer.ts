@@ -94,14 +94,14 @@ export class OuterCity {
     const c = Math.cos(gAng), s = Math.sin(gAng);
     const BW = 78, BL = 142;
     const [ox, oz] = ll(40.74, -74.03);
-    for (let i = -78; i <= 6; i++) for (let j = -78; j <= 84; j++) {
+    for (let i = -78; i <= 84; i++) for (let j = -84; j <= 96; j++) {
       const bx = ox + (i * BW) * c - (j * BL) * s, bz = oz + (i * BW) * s + (j * BL) * c;
-      if (bx < -8600 || bz < this.data.bbox.minZ - 1200 || bz > this.data.bbox.maxZ + 1500) continue;
+      if (bx < -9800 || bz < this.data.bbox.minZ - 3000 || bz > this.data.bbox.maxZ + 2200) continue;
       if (!pointInPoly(bx, bz, nj) || !pointInPoly(bx + 60, bz, nj)) continue;
       const hv = hash2(i * 13 + 5, j * 7 + p.seed);
       if (hv < 0.12) continue; // parks, yards, rail cuts
       const depth = Math.hypot(bx - ox, bz - oz);
-      const lots = 3 + Math.floor(hv * 3);
+      const lots = depth > 3200 ? 2 : 3 + Math.floor(hv * 3);
       for (let k = 0; k < lots; k++) for (const sd of [-1, 1]) {
         const lw = (BL - 16) / lots, ly = -BL / 2 + 8 + lw * (k + 0.5), lx = sd * (BW / 2 - 9 - 7);
         const x = bx + lx * c - ly * s, z = bz + lx * s + ly * c;
