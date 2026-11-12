@@ -162,9 +162,11 @@ export function signMaterial(map: THREE.Texture, opts: { night?: number; day?: n
 
 /** Emissive material whose strength follows night-time & the landmark glow slider. */
 export function beacon(color: THREE.ColorRepresentation, day: number, night: number, landmark = true): THREE.MeshBasicMaterial {
-  const m = new THREE.MeshBasicMaterial({ color, toneMapped: false });
+  // lights that are off by day are additive, so they simply vanish instead of rendering black
+  const add = day < 0.1;
+  const m = new THREE.MeshBasicMaterial({ color, toneMapped: false, transparent: add, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: !add });
   return extendMaterial(m, {
-    key: 'beacon' + (landmark ? 'L' : ''), uniforms: { uBDay: { value: day }, uBNight: { value: night }, uGlowScale: landmark ? U.uLandmarkGlow : { value: 1 } },
+    key: 'beacon' + (landmark ? 'L' : ''), noFog: add, uniforms: { uBDay: { value: day }, uBNight: { value: night }, uGlowScale: landmark ? U.uLandmarkGlow : { value: 1 } },
     fPars: 'uniform float uBDay; uniform float uBNight; uniform float uGlowScale;',
     fFinal: 'gl_FragColor.rgb *= mix(uBDay, uBNight, uNight) * uGlowScale;',
   });

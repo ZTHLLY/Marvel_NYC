@@ -27,7 +27,7 @@ export const SITES: Record<string, Site> = {
   bugle: { id: 'bugle', name: 'Daily Bugle', ...at(40.74748, -73.97262), clear: 30, marvel: true,
     blurb: '39th & Second — New York\'s loudest newspaper.', focus: { dist: 240, height: 150, lookY: 110 } },
   spidey: { id: 'spidey', name: 'Spider-Man Rooftop', ...at(40.74495, -73.98715), clear: 22, marvel: true,
-    blurb: 'A quiet perch below the Empire State Building.', focus: { dist: 30, height: 135, lookY: 128 } },
+    blurb: 'A quiet perch below the Empire State Building.', focus: { dist: 30, height: 200, lookY: 191 } },
   empire: { id: 'empire', name: 'Empire State Building', ...at(40.74843, -73.98566), clear: 70, marvel: false,
     blurb: '350 Fifth Avenue.', focus: { dist: 600, height: 380, lookY: 260 } },
   chrysler: { id: 'chrysler', name: 'Chrysler Building', ...at(40.75162, -73.97546), clear: 36, marvel: false,

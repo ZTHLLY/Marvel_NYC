@@ -125,7 +125,7 @@ export function buildSanctum(palette: StylePalette, data: CityData): SanctumBuil
 
   const brick = palette.addCustom({ win: [0.3, 0.56], bay: 2.6, floor: 4.0, wall: 0x5f382d, wallType: 0, glass: 0x2a3036, glassRough: 0.16, frame: 0x1c1a18, frameW: 0.1, ground: 4.4, lit: 0.35, warm: 1, coh: 0, pier: 0, spandrel: 0, sill: 1, crown: 0, roof: 0x2e3238, storefront: 0, accent: 0x7a2a2a, feature: 0 });
   const stone = palette.addCustom({ win: [0.3, 0.5], bay: 3, floor: 4, wall: 0xa89078, wallType: 1, glass: 0x2a3036, glassRough: 0.16, frame: 0x1c1a18, frameW: 0.1, ground: 4, lit: 0, warm: 1, coh: 0, pier: 0, spandrel: 0, sill: 0, crown: 0, roof: 0x2e3238, storefront: 0, accent: 0x7a2a2a, feature: 0 });
-  const slate = palette.addCustom({ win: [0.3, 0.5], bay: 3, floor: 4, wall: 0x3a4048, wallType: 2, glass: 0x2a3036, glassRough: 0.16, frame: 0x1c1a18, frameW: 0.1, ground: 4, lit: 0, warm: 1, coh: 0, pier: 0, spandrel: 0, sill: 0, crown: 0, roof: 0x2e3238, storefront: 0, accent: 0x7a2a2a, feature: 0 });
+  const slate = palette.addCustom({ win: [0.3, 0.5], bay: 3, floor: 4, wall: 0x2c2e33, wallType: 2, glass: 0x2a3036, glassRough: 0.16, frame: 0x1c1a18, frameW: 0.1, ground: 4, lit: 0, warm: 1, coh: 0, pier: 0, spandrel: 0, sill: 0, crown: 0, roof: 0x2e3238, storefront: 0, accent: 0x7a2a2a, feature: 0 });
   const shopBrick = palette.addCustom({ win: [0.42, 0.56], bay: 2.6, floor: 3.4, wall: 0x7a4838, wallType: 0, glass: 0x2e363c, glassRough: 0.16, frame: 0xe2ddd0, frameW: 0.09, ground: 0, lit: 0.55, warm: 0.9, coh: 0, pier: 0, spandrel: 0, sill: 1, crown: 0, roof: 0x3a3a3c, storefront: 0, accent: 0x2e6a4a, feature: 0 });
 
   const mb = new MeshBuilder(16384);
@@ -256,7 +256,7 @@ export function buildSanctum(palette: StylePalette, data: CityData): SanctumBuil
     add(new THREE.CylinderGeometry(0.04, 0.032, 0.1, 10), pbr({ color: 0xf2efe8, roughness: 0.5 }), x + 0.1, 0.81, z - 0.06);
   };
   table(7.2, F - 1.25); table(9.9, F - 1.3);
-  const leaf = pbr({ color: 0x1f3a1c, roughness: 0.9 });
+  const leaf = pbr({ color: 0x3a5a2c, roughness: 0.9 });
   for (const x of [SX0 + 0.55, 11.9]) { add(new THREE.BoxGeometry(0.9, 0.5, 0.42), green, x, 0.25, F - 0.5); const b = add(new THREE.IcosahedronGeometry(0.42, 1), leaf, x, 0.72, F - 0.5); b.scale.set(1.15, 0.75, 0.6); }
   const board = signMaterial(signTexture({ w: 256, h: 384, bg: '#1b1b1b', lines: [{ text: 'TODAY', size: 46, y: 0.16, color: '#f2e9d0', weight: 700, font: 'Georgia' }, { text: 'time stone', size: 36, y: 0.4, color: '#9fe0a0', weight: 400, font: 'Georgia', italic: true }, { text: 'cold brew', size: 36, y: 0.53, color: '#9fe0a0', weight: 400, font: 'Georgia', italic: true }, { text: 'no refunds,', size: 26, y: 0.76, color: '#d8d0b8', weight: 400, font: 'Georgia' }, { text: 'no time loops', size: 26, y: 0.86, color: '#d8d0b8', weight: 400, font: 'Georgia' }] }), { night: 0.5, day: 0.1 });
   const sb = panel(0.62, 0.95, board); sb.position.set(12.3, 0.5, F - 2.3); sb.rotation.set(-0.2, Math.PI - 0.5, 0, 'YXZ'); extras.add(sb);
@@ -271,14 +271,14 @@ export function buildSanctum(palette: StylePalette, data: CityData): SanctumBuil
     add(new THREE.ConeGeometry(0.3, 0.26, 12), iron, x, 6.62, z + dir * 1.45);
     const pl = new THREE.PointLight(0xffb870, 0, 30, 1.6); pl.position.set(x, 6.1, z + dir * 1.45); extras.add(pl); lamps.push(pl);
   };
-  lampPost(-9.5, SIDEWALK - 0.5, 1); lampPost(16.2, STREET - SIDEWALK + 0.5, -1);
+  lampPost(-9.5, SIDEWALK - 0.5, 1); lampPost(24.5, STREET - SIDEWALK + 0.5, -1);
   const shopLight = new THREE.PointLight(0xffa860, 0, 16, 1.8); shopLight.position.set(8.8, 2.4, F - 1.7); extras.add(shopLight); lamps.push(shopLight);
   add(new THREE.CylinderGeometry(0.13, 0.16, 0.62, 10), pbr({ color: 0xa82218, roughness: 0.5 }), 3.4, 0.31, STREET - SIDEWALK + 0.45); add(new THREE.SphereGeometry(0.14, 10, 8), pbr({ color: 0xa82218, roughness: 0.5 }), 3.4, 0.66, STREET - SIDEWALK + 0.45);
   const bugleBox = signMaterial(signTexture({ w: 128, h: 256, bg: '#a01c16', lines: [{ text: 'DAILY', size: 30, y: 0.12, weight: 900 }, { text: 'BUGLE', size: 30, y: 0.25, weight: 900 }], draw: (c, w, h) => { c.fillStyle = '#e8e2d0'; c.fillRect(14, h * 0.36, w - 28, h * 0.34); c.fillStyle = '#222'; c.font = '700 13px Arial'; c.fillText('SPIDER-MENACE', 18, h * 0.44); c.fillText('STRIKES AGAIN?', 18, h * 0.5); } }), { night: 0.25, day: 0.05 });
-  const nb = add(new THREE.BoxGeometry(0.5, 1.15, 0.45), pbr({ color: 0xa01c16, roughness: 0.5, metalness: 0.3 }), 16.6, 0.575, STREET - SIDEWALK + 0.6);
-  const nbf = panel(0.48, 1.1, bugleBox); nbf.position.set(16.6, 0.585, STREET - SIDEWALK + 0.6 - 0.23); nbf.rotation.y = Math.PI; extras.add(nbf); void nb;
+  const nb = add(new THREE.BoxGeometry(0.5, 1.15, 0.45), pbr({ color: 0xa01c16, roughness: 0.5, metalness: 0.3 }), 7.0, 0.575, STREET - SIDEWALK + 0.6);
+  const nbf = panel(0.48, 1.1, bugleBox); nbf.position.set(7.0, 0.585, STREET - SIDEWALK + 0.6 - 0.23); nbf.rotation.y = Math.PI; extras.add(nbf); void nb;
   add(new THREE.BoxGeometry(0.6, 1.15, 0.55), pbr({ color: 0x1f3f7a, roughness: 0.45, metalness: 0.4 }), -6.2, 0.58, SIDEWALK - 0.7);      // mailbox
-  for (const [x, z] of [[4.2, SIDEWALK - 0.6], [-4.5, STREET - SIDEWALK + 0.6]]) { add(new THREE.CylinderGeometry(0.07, 0.09, 2.6, 8), pbr({ color: 0x2a221c, roughness: 0.9 }), x, 1.3, z); const c1 = add(new THREE.IcosahedronGeometry(1.5, 1), leaf, x, 3.6, z); c1.scale.set(1, 0.9, 1); const c2 = add(new THREE.IcosahedronGeometry(1.1, 1), leaf, x + 0.7, 4.3, z + 0.3); void c2; }
+  for (const [x, z] of [[-11.2, SIDEWALK - 0.6], [26.5, SIDEWALK - 0.6]]) { add(new THREE.CylinderGeometry(0.07, 0.09, 2.6, 8), pbr({ color: 0x2a221c, roughness: 0.9 }), x, 1.3, z); const c1 = add(new THREE.IcosahedronGeometry(1.5, 1), leaf, x, 3.6, z); c1.scale.set(1, 0.9, 1); const c2 = add(new THREE.IcosahedronGeometry(1.1, 1), leaf, x + 0.7, 4.3, z + 0.3); void c2; }
 
   const body = facadeMesh(mb.build());
   group.add(body, extras);
@@ -288,7 +288,7 @@ export function buildSanctum(palette: StylePalette, data: CityData): SanctumBuil
   return {
     group, mandala, lights: lamps, toWorld,
     clear: [{ x: c1.x, z: c1.z, r: 12.5 }, { x: c2.x, z: c2.z, r: 9.5 }],
-    strange: { pos: toWorld(12.6, 0, F - 2.25), yaw: yawWorld(0.72, -0.5) },
+    strange: { pos: toWorld(15.0, 0, STREET - SIDEWALK + 0.75), yaw: yawWorld(0.9, 0.25) },
     strangeAlt: { pos: toWorld(1.9, 0.82, 1.3), yaw: yawWorld(0.25, 1) },
   };
 }

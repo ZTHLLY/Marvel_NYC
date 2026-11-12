@@ -363,12 +363,12 @@ const F_SURFACE = /* glsl */ `
       float rFloor = h21(vec2(id.y * 3.1, seed * 91.0));
       float rr2 = h21(id * 0.73 + seed * 51.0);
       float litRand = mix(rCell, rFloor * 0.75 + rCell * 0.25, vS4.w);
-      float litFrac = vS4.y * uWindowLight * (isGround > 0.5 ? 1.6 : 1.0);
+      float litFrac = vS4.y * uWindowLight * (isGround > 0.5 ? 1.5 : 0.62);
       lit = step(litRand, litFrac);
       float warm = clamp(vS4.z + (rr2 - 0.5) * 0.5, 0.0, 1.0);
-      litCol = mix(vec3(0.72, 0.86, 1.0), vec3(1.0, 0.66, 0.34), warm);
+      litCol = mix(vec3(0.62, 0.8, 1.0), vec3(1.0, 0.6, 0.27), warm);
       litCol = mix(litCol, vec3(0.45, 0.6, 1.0), step(0.965, rr2) * (1.0 - vS4.w));   // the odd television
-      float inten = 0.45 + 1.1 * h21(id + seed * 7.0);
+      float inten = 0.16 + 0.95 * pow(h21(id + seed * 7.0), 1.6);
       vec3 room = vec3(0.6);
       if (uDetail > 0.5 && lodc < 0.3) {
         // interior mapping: intersect the view ray with a virtual room box
@@ -393,8 +393,8 @@ const F_SURFACE = /* glsl */ `
         room = mix(room, vec3(0.62, 0.6, 0.55) * (0.8 + 0.2 * step(0.5, fract(wf.y * 14.0))), blind * 0.85);
         room = mix(room, vec3(0.6), smoothstep(0.15, 0.3, lodc));
       }
-      float nightGain = mix(0.1, 1.0, smoothstep(0.0, 0.85, uNight)) * (isGround > 0.5 ? mix(3.0, 1.2, uNight) : 1.0);
-      vec3 interior = room * (lit * litCol * inten * 2.6 * nightGain + (1.0 - uNight) * 0.2 * (0.45 + 0.55 * rr2));
+      float nightGain = mix(0.1, 1.0, smoothstep(0.0, 0.85, uNight)) * (isGround > 0.5 ? mix(3.0, 0.75, uNight) : 1.0);
+      vec3 interior = room * (lit * litCol * inten * 2.1 * nightGain + (1.0 - uNight) * 0.2 * (0.45 + 0.55 * rr2));
       float fres = pow(1.0 - max(dot(V, wN), 0.0), 3.0);
       vec3 glassCol = vS2.rgb * (0.9 + 0.2 * rCell);
       vec3 gAlb = mix(glassCol * 0.42, glassCol * 0.85, curtain);

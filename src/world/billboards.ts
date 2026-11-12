@@ -67,8 +67,8 @@ export class Billboards {
 
   constructor(data: CityData, ground: GroundBuild) {
     this.group.name = 'billboards';
-    this.marvelMats = MARVEL_ADS.map((s) => signMaterial(signTexture(s), { night: 2.6, day: 0.95 }));
-    this.genericMats = Array.from({ length: 14 }, (_, i) => signMaterial(signTexture(genericAd(i + 1)), { night: 2.6, day: 0.95 }));
+    this.marvelMats = MARVEL_ADS.map((s) => signMaterial(signTexture(s), { night: 1.25, day: 0.8 }));
+    this.genericMats = Array.from({ length: 14 }, (_, i) => signMaterial(signTexture(genericAd(i + 1)), { night: 1.25, day: 0.8 }));
     const tall = (i: number, marvel: boolean) => { const s = marvel ? MARVEL_ADS[i] : null; return s ? s.h > s.w : ((this.genericMats[i].userData.tall as boolean) ?? false); };
     this.genericMats.forEach((m, i) => { const sp = genericAd(i + 1); m.userData.tall = sp.h > sp.w; });
     const grid = ground.grid;

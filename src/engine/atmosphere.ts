@@ -183,7 +183,7 @@ void main(){
     vec2 sp = d.xz / (0.35 + h) * 180.0;
     vec2 id = floor(sp); vec2 f = fract(sp) - 0.5;
     float r = h21(id + uSeed);
-    float star = smoothstep(0.09, 0.0, length(f + (vec2(h21(id + 3.0), h21(id + 7.0)) - 0.5) * 0.7)) * step(0.93, r);
+    float star = (1.0 - smoothstep(0.0, 0.09, length(f + (vec2(h21(id + 3.0), h21(id + 7.0)) - 0.5) * 0.7))) * step(0.93, r);
     col += vec3(0.9, 0.95, 1.0) * star * uStars * (0.35 + 0.65 * h21(id + 11.0)) * smoothstep(0.02, 0.3, h) * 1.4;
   }
   // sun disc & moon
@@ -211,8 +211,8 @@ void main(){
   vec3 fogc = mix(uFogColor, uFogSunColor, clamp((pow(sd, 6.0) + 0.45 * pow(sd, 2.0)) * uFogSun, 0.0, 1.0));
   float hz = exp(-max(h, 0.0) * mix(26.0, 5.0, uFogAmt));
   col = mix(col, fogc, clamp(hz, 0.0, 1.0));
-  if (h < 0.0) col = mix(fogc, fogc * 0.55, smoothstep(0.0, -0.4, h));
-  gl_FragColor = vec4(col, 1.0);
+  if (h < 0.0) col = mix(fogc, fogc * 0.55, 1.0 - smoothstep(-0.4, 0.0, h));
+  gl_FragColor = vec4(min(max(col, vec3(0.0)), vec3(48.0)), 1.0);
 }`;
 
 /** Sky dome + image-based-lighting environment generated from the same shader. */

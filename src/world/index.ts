@@ -100,8 +100,8 @@ export async function buildWorldExtras(engine: Engine, data: CityData, ground: G
   {
     const p = perch.perch.pos, fwd = new THREE.Vector3(Math.sin(perch.perch.yaw), 0, Math.cos(perch.perch.yaw));
     const right = new THREE.Vector3(fwd.z, 0, -fwd.x);
-    setBookmark('spidey', p.clone().addScaledVector(fwd, -3.9).addScaledVector(right, -2.1).add(new THREE.Vector3(0, 1.05, 0)), p.clone().addScaledVector(fwd, 30).addScaledVector(right, 3).add(new THREE.Vector3(0, 0.6, 0)), 42);
-    setBookmark('sanctum', sanctum.toWorld(19.6, 1.28, 14.4), sanctum.toWorld(5.2, 5.6, 6.5), 44);
+    setBookmark('spidey', p.clone().addScaledVector(fwd, -4.6).addScaledVector(right, 2.6).add(new THREE.Vector3(0, 1.25, 0)), p.clone().addScaledVector(fwd, 40).addScaledVector(right, -18).add(new THREE.Vector3(0, -1.5, 0)), 46);
+    setBookmark('sanctum', sanctum.toWorld(19.2, 1.3, 14.7), sanctum.toWorld(19.2 - 16.6, 1.3 + 4.6, 14.7 - 10.8), 46);
     const a = avengers.ironman.pos;
     setBookmark('avengers', new THREE.Vector3(a.x + 150, 232, a.z + 470), new THREE.Vector3(SITES.avengers.x - 20, 250, SITES.avengers.z), 34);
   }

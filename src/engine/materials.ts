@@ -115,7 +115,8 @@ export function extendMaterial<T extends THREE.Material>(mat: T, ext: MaterialEx
         `#include <normal_fragment_maps>\n${ext.fSurface || ''}\n${ext.weather ? WEATHER_SURFACE : ''}`);
     }
     fs = fs.replace('#include <fog_fragment>',
-      `${ext.fFinal || ''}\n${ext.noFog ? '' : 'gl_FragColor.rgb = applyCityFog(gl_FragColor.rgb);'}`);
+      // HDR safety: mirror-like sun glints can exceed half-float range and turn into Inf/NaN that bloom would smear over the frame
+      `${ext.fFinal || ''}\n${ext.noFog ? '' : 'gl_FragColor.rgb = applyCityFog(gl_FragColor.rgb);'}\ngl_FragColor.rgb = min(max(gl_FragColor.rgb, vec3(0.0)), vec3(48.0));`);
     shader.fragmentShader = fs;
   };
   mat.customProgramCacheKey = () => 'forge:' + ext.key + (ext.weather ? ':w' : '') + (ext.noFog ? ':nf' : '');

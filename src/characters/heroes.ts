@@ -311,9 +311,9 @@ export async function buildDoctorStrange(): Promise<Hero> {
       float plaid = 0.5 * step(0.5, fract(t.x)) + 0.5 * step(0.5, fract(t.y));
       vec3 lining = mix(vec3(0.13, 0.012, 0.02), vec3(0.3, 0.05, 0.03), plaid) + vec3(0.25, 0.18, 0.05) * step(0.94, fract(t.x * 0.5)) * 0.5;
       float trim = step(vCUv.y, 0.012) + step(0.985, vCUv.y) + step(vCUv.x, 0.012) + step(0.988, vCUv.x);
-      vec3 c = gl_FrontFacing ? outer : lining;
+      vec3 c = gl_FrontFacing ? lining : outer;
       c = mix(c, vec3(0.5, 0.36, 0.1), clamp(trim, 0.0, 1.0) * 0.8);
-      diffuseColor.rgb = c; roughnessFactor = gl_FrontFacing ? 0.58 : 0.7;
+      diffuseColor.rgb = c; roughnessFactor = gl_FrontFacing ? 0.7 : 0.58;
     }`,
   });
   const cloak = new THREE.Mesh(cloakGeometry(shoulderY), cloakMat);

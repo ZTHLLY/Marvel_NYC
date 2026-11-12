@@ -19,7 +19,7 @@ void main(){
   float sz = uSize * (0.6 + 0.9 * aRand);
   wp += right * position.x * sz + upv * position.y * sz * mix(1.0, 46.0, step(0.5, uStreak));
   vQ = position.xy; vRand = aRand;
-  vFade = smoothstep(uBox.x * 0.5, uBox.x * 0.32, dist) * smoothstep(0.25, 1.6, dist);
+  vFade = (1.0 - smoothstep(uBox.x * 0.32, uBox.x * 0.5, dist)) * smoothstep(0.25, 1.6, dist);
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
 }`;
 const FRAG = /* glsl */ `
@@ -29,7 +29,7 @@ varying vec2 vQ; varying float vFade; varying float vRand;
 void main(){
   float a;
   if (uStreak > 0.5) a = (1.0 - abs(vQ.x) * 2.0) * (1.0 - pow(abs(vQ.y) * 2.0, 3.0));
-  else { float d = length(vQ) * 2.0; a = smoothstep(1.0, 0.25, d); }
+  else { float d = length(vQ) * 2.0; a = 1.0 - smoothstep(0.25, 1.0, d); }
   a *= vFade * uOpacity * (0.45 + 0.55 * vRand);
   if (a < 0.004) discard;
   gl_FragColor = vec4(uColor * a, a);

@@ -89,6 +89,9 @@ export class Post {
     this.composer.addPass(this.gradePass);
     this.smaaPass = new EffectPass(camera, new SMAAEffect({ preset: SMAAPreset.HIGH, edgeDetectionMode: EdgeDetectionMode.COLOR }));
     this.composer.addPass(this.smaaPass);
+    // we toggle passes at runtime, so decide explicitly which one presents to the screen
+    this.composer.autoRenderToScreen = false;
+    this.smaaPass.renderToScreen = true;
   }
 
   setSize(w: number, h: number) {
@@ -119,6 +122,8 @@ export class Post {
     cm.worldFocusRange = lerp(p.focusDistance * 2.2 + 30, p.focusDistance * 0.35 + 1.5, Math.min(1, p.dof));
     this.dof.bokehScale = lerp(1.2, 5.5, p.dof) * (capture ? 1.6 : 1);
     this.smaaPass.enabled = q >= 1;
+    this.smaaPass.renderToScreen = this.smaaPass.enabled;
+    this.gradePass.renderToScreen = !this.smaaPass.enabled;
     const msaa = q >= 3 ? 4 : q >= 2 ? 2 : 0;
     if (msaa !== this.msaa) { this.msaa = msaa; this.composer.multisampling = msaa; }
   }

@@ -30,6 +30,7 @@ await page.goto(url, { waitUntil: 'domcontentloaded' });
 const t0 = Date.now();
 await page.waitForFunction(() => window.__forge && window.__forge.engine.ready, null, { timeout: 180000 }).catch(() => errors.push('TIMEOUT waiting for engine.ready'));
 console.log(`ready in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+await page.waitForTimeout(1500); // let the first-run help appear so each shot can dismiss it
 if (evalJs) console.log('eval →', await page.evaluate(evalJs));
 
 const waitSettled = async () => {
@@ -45,7 +46,7 @@ for (const spec of args) {
   await page.evaluate(({ parts, rest, ui }) => {
     const { engine, store, bus } = window.__forge;
     const st = store.getState();
-    st.ui({ uiHidden: !ui });
+    st.ui({ uiHidden: !ui, showHelp: false, photoMode: parts[0].includes('photo'), activeGroup: (parts[0].match(/tab-(\w+)/) || [])[1] || st.activeGroup });
     let i = 0;
     if (parts.length >= 3) {
       const pos = parts[1].split(',').map(Number), target = parts[2].split(',').map(Number);

@@ -101,9 +101,9 @@ const GROUND_SURFACE = /* glsl */ `
   if (uReflStrength > 0.001) {
     vec3 Vv = normalize(cameraPosition - vFogWorld);
     float fres = 0.04 + 0.96 * pow(1.0 - max(Vv.y, 0.0), 4.0);
-    vec2 dn = (vec2(vnoise(wp * 2.3), vnoise(wp * 2.3 + 19.0)) - 0.5);
-    vec3 rf = planarRefl(vFogWorld, dn * vec2(0.012, 0.03));
-    totalEmissiveRadiance += rf * fres * wet * uReflStrength * (0.25 + 0.75 * puddle);
+    vec2 dn = (vec2(vnoise(wp * 11.0), vnoise(wp * 11.0 + 19.0)) - 0.5) * (1.0 - 0.8 * puddle);
+    vec3 rf = planarRefl(vFogWorld, dn * vec2(0.004, 0.02));
+    totalEmissiveRadiance += rf * fres * wet * uReflStrength * (0.1 + 0.9 * puddle);
   }
   #endif
 }
@@ -165,9 +165,10 @@ const ROAD_SURFACE = /* glsl */ `
   if (uReflStrength > 0.001) {
     vec3 Vv = normalize(cameraPosition - vFogWorld);
     float fres = 0.05 + 0.95 * pow(1.0 - max(Vv.y, 0.0), 3.5);
-    vec2 dn = (vec2(vnoise(wp * 1.9), vnoise(wp * 1.9 + 31.0)) - 0.5) + (vec2(vnoise(wp * 9.0), vnoise(wp * 9.0 + 5.0)) - 0.5) * 0.35;
-    vec3 rf = planarRefl(vFogWorld, dn * vec2(0.01, 0.045));
-    totalEmissiveRadiance += rf * fres * wet * uReflStrength * (0.45 + 0.55 * puddle);
+    // fine asphalt grain breaks the mirror into long vertical smears rather than a flooded-street ripple
+    vec2 dn = (vec2(vnoise(wp * 14.0), vnoise(wp * 14.0 + 31.0)) - 0.5) * (1.0 - 0.8 * puddle) + (vec2(vnoise(wp * 55.0), vnoise(wp * 55.0 + 5.0)) - 0.5) * 0.6;
+    vec3 rf = planarRefl(vFogWorld, dn * vec2(0.004, 0.028));
+    totalEmissiveRadiance += rf * fres * wet * uReflStrength * (0.16 + 0.84 * puddle);
   }
   #endif
 }
@@ -244,7 +245,7 @@ void main(){
   // ice floes when it snows
   float ice = smoothstep(0.62, 0.7, vnoise(p * 0.012) * 0.6 + vnoise(p * 0.08) * 0.4) * smoothstep(0.5, 1.0, uSnow);
   col = mix(col, vec3(0.7, 0.75, 0.82) * (uSkyHorizon * 0.6 + 0.25), ice * 0.7);
-  gl_FragColor = vec4(applyCityFog(col), 1.0);
+  gl_FragColor = vec4(min(max(applyCityFog(col), vec3(0.0)), vec3(48.0)), 1.0);
 }`;
 
 export interface GroundBuild {
