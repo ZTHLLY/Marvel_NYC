@@ -48,7 +48,7 @@ export class OuterCity {
   }
 
   build(p: Params) {
-    for (const m of this.meshes) { this.group.remove(m); m.dispose(); }
+    for (const m of this.meshes) { this.group.remove(m); m.geometry.dispose(); m.dispose(); }
     this.meshes = [];
     const grid = this.ground.grid;
     const occ = new Uint8Array(grid.occ); // private copy so rebuilding stays deterministic
@@ -150,5 +150,5 @@ export class OuterCity {
     return boxes.length;
   }
 
-  dispose() { for (const m of this.meshes) m.dispose(); this.geo.dispose(); }
+  dispose() { for (const m of this.meshes) { m.geometry.dispose(); m.dispose(); } this.geo.dispose(); }
 }

@@ -11,12 +11,14 @@ const SUIT_V = { vPars: 'varying vec3 vBind;', vMain: 'vBind = position;' };
 const SUIT_COMMON = /* glsl */ `
 varying vec3 vBind;
 float sdSeg(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h); }
-float lineMask(float d, float w){ float aa = fwidth(d) * 1.2; return 1.0 - smoothstep(w, w + aa, d); }
+float suitAA = 0.001;   // pixel footprint in bind space, set once per fragment (derivatives are undefined inside branches)
+float lineMask(float d, float w){ return 1.0 - smoothstep(w, w + suitAA, d); }
 `;
 
 const SPIDEY_SURFACE = /* glsl */ `
 {
   vec3 p = vBind; float ax = abs(p.x);
+  suitAA = max(length(fwidth(vBind)) * 0.9, 1e-5);
   vec3 red = vec3(0.47, 0.022, 0.03), blue = vec3(0.022, 0.06, 0.26), black = vec3(0.01);
   float head = step(1.535, p.y) * step(ax, 0.14);
   float arm = step(0.2, ax) * step(1.2, p.y);
@@ -100,6 +102,7 @@ const SPIDEY_SURFACE = /* glsl */ `
 const STRANGE_SURFACE = /* glsl */ `
 {
   vec3 p = vBind; float ax = abs(p.x);
+  suitAA = max(length(fwidth(vBind)) * 0.9, 1e-5);
   vec3 tunic = vec3(0.03, 0.075, 0.17), tunicHi = vec3(0.05, 0.12, 0.25), navy = vec3(0.015, 0.025, 0.05);
   vec3 skin = vec3(0.56, 0.36, 0.27), leather = vec3(0.11, 0.06, 0.03), hair = vec3(0.03, 0.025, 0.022);
   float head = step(1.535, p.y) * step(ax, 0.14);
@@ -154,6 +157,7 @@ const STRANGE_SURFACE = /* glsl */ `
 const IRON_SURFACE = /* glsl */ `
 {
   vec3 p = vBind; float ax = abs(p.x);
+  suitAA = max(length(fwidth(vBind)) * 0.9, 1e-5);
   vec3 red = vec3(0.42, 0.015, 0.02), gold = vec3(0.78, 0.52, 0.16);
   float head = step(1.535, p.y) * step(ax, 0.14);
   float arm = step(0.2, ax) * step(1.2, p.y);

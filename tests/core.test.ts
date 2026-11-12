@@ -98,7 +98,7 @@ describe('atmosphere', () => {
     expect(seen.size).toBe(SCENE_PRESETS.length);
   });
   it('weather presets drive the environment sliders', () => {
-    expect(computeAtmosphere({ ...DEFAULT_PARAMS, ...WEATHER_PRESETS.fog }).fogGround).toBeGreaterThan(computeAtmosphere(DEFAULT_PARAMS).fogGround * 4);
+    expect(computeAtmosphere({ ...DEFAULT_PARAMS, weather: 'fog', ...WEATHER_PRESETS.fog }).fogGround).toBeGreaterThan(computeAtmosphere(DEFAULT_PARAMS).fogGround * 4);
     expect(computeAtmosphere({ ...DEFAULT_PARAMS, ...WEATHER_PRESETS.overcast }).lightIntensity).toBeLessThan(computeAtmosphere(DEFAULT_PARAMS).lightIntensity * 0.4);
     expect(Object.keys(QUALITY_PRESETS)).toEqual(['low', 'medium', 'high', 'ultra']);
   });

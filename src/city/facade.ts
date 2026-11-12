@@ -231,6 +231,7 @@ flat varying vec4 vS4; flat varying vec4 vS5; flat varying vec4 vS6; flat varyin
 flat varying vec3 vInfo;
 varying vec2 vFUv;
 float rectMask(vec2 f, vec2 a, vec2 b, vec2 fw){
+  fw = max(fw, vec2(1e-4));
   vec2 lo = smoothstep(a - fw, a + fw, f); vec2 hi = 1.0 - smoothstep(b - fw, b + fw, f);
   return lo.x * lo.y * hi.x * hi.y;
 }
@@ -289,16 +290,19 @@ const F_SURFACE = /* glsl */ `
     if (surf > 7.5) isParapet = 1.0;
     float lit = 0.0; vec3 litCol = vec3(0.0); float win = 0.0;
     vec2 id; vec2 f; vec2 fw; vec2 a; vec2 b2; float winW; float winH; float isGround = 0.0;
+    // screen-space derivatives are taken up front: they are undefined inside divergent branches
+    float gbay = bayW * max(1.0, floor(4.6 / bayW + 0.5));
+    vec2 fwUp = max(fwidth(vec2(uvm.x / bayW, aboveG / floorH)), vec2(1e-5)) * 0.75;
+    vec2 fwGd = max(fwidth(vec2(uvm.x / gbay, uvm.y / groundH)), vec2(1e-5)) * 0.75;
     if (aboveG >= 0.0) {
       vec2 cell = vec2(uvm.x / bayW, aboveG / floorH);
-      id = floor(cell); f = fract(cell); fw = fwidth(cell) * 0.75;
+      id = floor(cell); f = fract(cell); fw = fwUp;
       winW = vS0.x; winH = vS0.y;
       a = vec2(0.5 - winW * 0.5, (1.0 - winH) * 0.42); b2 = a + vec2(winW, winH);
     } else {
       // storefront / lobby level: wide bays
-      float gb = bayW * max(1.0, floor(4.6 / bayW + 0.5));
-      vec2 cell = vec2(uvm.x / gb, uvm.y / groundH);
-      id = floor(cell) + vec2(0.0, -7.0); f = fract(cell); fw = fwidth(cell) * 0.75;
+      vec2 cell = vec2(uvm.x / gbay, uvm.y / groundH);
+      id = floor(cell) + vec2(0.0, -7.0); f = fract(cell); fw = fwGd;
       float shop = step(h21(vec2(id.x * 0.37, seed * 5.0)), vS6.a);
       winW = mix(vS0.x * 0.6, 0.9, shop); winH = mix(0.5, 0.66, shop);
       a = vec2(0.5 - winW * 0.5, mix(0.3, 0.08, shop)); b2 = a + vec2(winW, winH);
@@ -320,7 +324,8 @@ const F_SURFACE = /* glsl */ `
     float recess = mix(0.26, 0.07, curtain) * nearK * (isGround > 0.5 ? 1.6 : 1.0);
     vec2 fG = f - vt.xy / vt.z * recess / vec2(bayW, isGround > 0.5 ? groundH : floorH);
     // minification: fade each axis to its own coverage so floor bands survive long after bays blur
-    vec2 lo2 = smoothstep(a - fw, a + fw, f); vec2 hi2 = 1.0 - smoothstep(b2 - fw, b2 + fw, f);
+    vec2 fwS = max(fw, vec2(1e-4));
+    vec2 lo2 = smoothstep(a - fwS, a + fwS, f); vec2 hi2 = 1.0 - smoothstep(b2 - fwS, b2 + fwS, f);
     vec2 axis = lo2 * hi2;
     vec2 fade = smoothstep(vec2(0.28), vec2(0.8), fw * 1.33);
     axis = mix(axis, vec2(winW, winH), fade);
@@ -393,7 +398,7 @@ const F_SURFACE = /* glsl */ `
         room = mix(room, vec3(0.62, 0.6, 0.55) * (0.8 + 0.2 * step(0.5, fract(wf.y * 14.0))), blind * 0.85);
         room = mix(room, vec3(0.6), smoothstep(0.15, 0.3, lodc));
       }
-      float nightGain = mix(0.1, 1.0, smoothstep(0.0, 0.85, uNight)) * (isGround > 0.5 ? mix(3.0, 0.75, uNight) : 1.0);
+      float nightGain = mix(0.1, 1.0, smoothstep(0.0, 0.85, uNight)) * (isGround > 0.5 ? mix(1.5, 0.7, uNight) : 1.0);
       vec3 interior = room * (lit * litCol * inten * 2.6 * nightGain + (1.0 - uNight) * 0.2 * (0.45 + 0.55 * rr2));
       float fres = pow(1.0 - max(dot(V, wN), 0.0), 3.0);
       vec3 glassCol = vS2.rgb * (0.9 + 0.2 * rCell);

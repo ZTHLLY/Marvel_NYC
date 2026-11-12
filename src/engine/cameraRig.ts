@@ -72,13 +72,14 @@ export class CameraRig {
       this.onUserInput?.();
     });
     const isTyping = () => { const el = document.activeElement; return !!el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName); };
+    const onControl = () => { const el = document.activeElement; return !!el && /^(BUTTON|A)$/.test(el.tagName); };
     on(window, 'keydown', (e: KeyboardEvent) => {
       if (isTyping() || e.metaKey || e.ctrlKey) return;
       const k = e.code;
       if (/^(Key[WASDQE]|Arrow(Up|Down|Left|Right)|Space|ShiftLeft|ShiftRight)$/.test(k)) {
         this.keys.add(k);
         if (k !== 'ShiftLeft' && k !== 'ShiftRight') { this.cancelTransition(); this.onUserInput?.(); }
-        if (k === 'Space' || k.startsWith('Arrow')) e.preventDefault();
+        if ((k === 'Space' || k.startsWith('Arrow')) && !onControl()) e.preventDefault();
       }
     });
     on(window, 'keyup', (e: KeyboardEvent) => this.keys.delete(e.code));
@@ -126,8 +127,8 @@ export class CameraRig {
 
   cancelTransition() {
     if (!this.trans) return;
-    this.adoptCameraPose();
     this.trans = null;
+    this.adoptCameraPose();
   }
 
   /** Read the current camera transform back into rig state (after a transition / external set). */
@@ -136,6 +137,8 @@ export class CameraRig {
     const dir = this.camera.getWorldDirection(tmp);
     const yaw = Math.atan2(dir.x, -dir.z) / DEG, pitch = Math.asin(clamp(dir.y, -1, 1)) / DEG;
     this.yaw = this.sYaw = yaw; this.pitch = this.sPitch = pitch;
+    this.roll = this.sRoll = 0;
+    this.vel.set(0, 0, 0);
     this.pos.copy(this.camera.position); this.sPos.copy(this.pos);
     const d = targetHint ? this.camera.position.distanceTo(targetHint) : this.sDist;
     this.dist = this.sDist = d;
@@ -179,8 +182,14 @@ export class CameraRig {
 
   readout(): CamReadout {
     const c = this.camera.position;
-    let h = this.sYaw % 360; if (h < 0) h += 360;
-    return { x: c.x, y: c.y, z: c.z, heading: h, pitch: this.sPitch, roll: this.sRoll };
+    let yaw = this.sYaw, pitch = this.sPitch;
+    if (this.trans) {
+      // mid-flight the pose lives in the camera transform, not the rig state
+      const d = this.camera.getWorldDirection(new THREE.Vector3());
+      yaw = Math.atan2(d.x, -d.z) / DEG; pitch = Math.asin(clamp(d.y, -1, 1)) / DEG;
+    }
+    let h = yaw % 360; if (h < 0) h += 360;
+    return { x: c.x, y: c.y, z: c.z, heading: h, pitch, roll: this.trans ? 0 : this.sRoll };
   }
 
   get transitioning() { return !!this.trans; }

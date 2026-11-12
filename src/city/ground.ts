@@ -158,7 +158,8 @@ const ROAD_SURFACE = /* glsl */ `
   // sodium / LED street-lamp pools alternate along both kerbs
   float seg = v / 31.0; float ph = fract(seg) - 0.5;
   float side = mod(floor(seg), 2.0) * 2.0 - 1.0;
-  float pool = exp(-(ph * ph) * 31.0 * 31.0 / 150.0) * exp(-pow((x - side * halfW * 0.8) / (halfW * 0.9 + 2.0), 2.0));
+  float px = (x - side * halfW * 0.8) / (halfW * 0.9 + 2.0);
+  float pool = exp(-(ph * ph) * 31.0 * 31.0 / 150.0) * exp(-px * px);
   vec3 lampC = mix(vec3(1.0, 0.62, 0.3), vec3(0.85, 0.92, 1.0), step(0.6, h21(vec2(floor(len), 2.0))));
   totalEmissiveRadiance += (col + 0.012) * lampC * uNight * (0.35 + 2.4 * pool);
   #ifdef FORGE_REFL

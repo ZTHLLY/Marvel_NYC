@@ -287,29 +287,27 @@ export function buildChrysler(palette: StylePalette): THREE.Group {
   decoTiers(mb, site, row, 0.3, [
     [0, 51.8, 31, 30.5], [51.8, 88.8, 27, 26], [88.8, 118.4, 22.5, 22], [118.4, 236.8, 16.5, 16.5, 1.5], [236.8, 251.6, 14, 14, 3], [251.6, 262.7, 11.5, 11.5, 3.4],
   ], 2.4);
-  // stainless sunburst crown: seven diminishing arches approximated by a faceted ogive
-  mb.style(row, Surf.Steel, 0.3, 500);
-  const steps = 9;
+  // stainless sunburst crown: terraced, four-sided ogive (each terrace stands in for one of the radiating arches)
+  const glowMat = beacon(0xfff4dc, 0.0, 2.4, false);
+  const steps = 14, stepH = 3.05;
   let y = 262.7;
   for (let i = 0; i < steps; i++) {
-    const t0 = i / steps, t1 = (i + 1) / steps;
-    const r0 = 11.3 * (1 - Math.pow(t0, 1.55)) + 0.9, r1 = 11.3 * (1 - Math.pow(t1, 1.55)) + 0.9;
-    const h = 5.2 - i * 0.12;
-    mb.cyl(site.x, y, site.z, r0, r1 * 0.985 + 0.2, h, 8, false);
-    y += h;
+    const r = 11.2 * (1 - Math.pow(i / steps, 1.75)) + 0.9;
+    const ring = rectRing(site.x, site.z, r, r, GRID_ANGLE, r * 0.12);
+    mb.style(row, Surf.Steel, 0.3, 500);
+    mb.walls(ring, y, y + stepH, 0);
+    mb.cap(ring, y + stepH);
+    if (i > 1 && i < steps - 1) {
+      // the triangular windows that light up after dark
+      const band = new THREE.Mesh(new THREE.BoxGeometry(r * 2 + 0.12, 0.7, r * 2 + 0.12), glowMat);
+      band.position.set(site.x, y + stepH * 0.55, site.z); band.rotation.y = -GRID_ANGLE;
+      group.add(band);
+    }
+    y += stepH;
   }
-  mb.cyl(site.x, y, site.z, 1.05, 0.06, 318.9 - y, 8, false);
+  mb.style(row, Surf.Steel, 0.3, 500);
+  mb.cyl(site.x, y, site.z, 1.0, 0.06, 318.9 - y, 8, false);
   group.add(facadeMesh(mb.build()));
-  // triangular crown windows glow after dark
-  const glowMat = beacon(0xfff4dc, 0.0, 2.6, false);
-  for (let i = 1; i < 7; i++) {
-    const t = i / steps;
-    const r = 11.3 * (1 - Math.pow(t, 1.55)) + 1.05;
-    const ring = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.99, r * 1.0, 0.5, 8, 1, true), glowMat);
-    ring.position.set(site.x, 262.7 + i * 5.1 + 1.2, site.z);
-    ring.rotation.y = Math.PI / 8 - GRID_ANGLE;
-    group.add(ring);
-  }
   return group;
 }
 

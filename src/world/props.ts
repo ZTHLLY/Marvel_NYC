@@ -48,22 +48,43 @@ export class StreetProps {
     this.group.name = 'street-props';
     const r = mulberry32(90210);
     const TILE = 420;
-    type Acc = { cars: { m: THREE.Matrix4; c: THREE.Color }[]; head: THREE.Matrix4[]; tail: THREE.Matrix4[]; poles: THREE.Matrix4[]; lampsW: THREE.Matrix4[]; lampsC: THREE.Matrix4[] };
+    type Acc = { cars: { m: THREE.Matrix4; c: THREE.Color }[]; head: THREE.Matrix4[]; tail: THREE.Matrix4[]; poles: THREE.Matrix4[]; lampsW: THREE.Matrix4[]; lampsC: THREE.Matrix4[]; sig: THREE.Matrix4[]; red: THREE.Matrix4[]; green: THREE.Matrix4[] };
     const acc = new Map<string, Acc>();
     const get = (x: number, z: number) => {
       const k = Math.floor(x / TILE) + ',' + Math.floor(z / TILE);
       let a = acc.get(k);
-      if (!a) { a = { cars: [], head: [], tail: [], poles: [], lampsW: [], lampsC: [] }; acc.set(k, a); }
+      if (!a) { a = { cars: [], head: [], tail: [], poles: [], lampsW: [], lampsC: [], sig: [], red: [], green: [] }; acc.set(k, a); }
       return a;
     };
     const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
     const blocked = (x: number, z: number) => reserved.some((c) => (x - c.x) ** 2 + (z - c.z) ** 2 < c.r * c.r);
+    // junctions: nodes where three or more street ends meet get traffic signals
+    const nodeKey = (x: number, z: number) => `${Math.round(x / 1.5)},${Math.round(z / 1.5)}`;
+    const nodes = new Map<string, number>();
+    for (const rd of data.roads) { if (rd.b !== 1 || rd.t !== 1) continue; const n = rd.pts.length / 2; for (const e of [0, n - 1]) { const k = nodeKey(rd.pts[e * 2], rd.pts[e * 2 + 1]); nodes.set(k, (nodes.get(k) || 0) + 1); } }
     for (const rd of data.roads) {
       if (rd.b !== 1 || rd.t !== 1) continue;
       const st = streetOf(rd.pts[0], rd.pts[1]);
       if (st < -13 || st > 68) continue;                     // core only
       const n = rd.pts.length / 2, halfW = rd.w / 2;
       const oneWay = hash2(Math.round(rd.pts[0]), Math.round(rd.pts[1])) < 0.5 ? 1 : -1;
+      // a signal mast on the approach to each junction (wide avenues run on green, cross streets wait on red)
+      for (const e of [0, n - 1]) {
+        if ((nodes.get(nodeKey(rd.pts[e * 2], rd.pts[e * 2 + 1])) || 0) < 3 || halfW < 3.4) continue;
+        const o = e === 0 ? 1 : n - 2;
+        const ex = rd.pts[e * 2], ez = rd.pts[e * 2 + 1];
+        let dx = ex - rd.pts[o * 2], dz = ez - rd.pts[o * 2 + 1]; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;   // travelling toward the junction
+        if (dl < 26) continue;
+        const back = 8.5 + (halfW > 7 ? 0 : 4), sx = ex - dx * back + dz * (halfW + 0.7), sz = ez - dz * back - dx * (halfW + 0.7);
+        if (blocked(sx, sz)) continue;
+        q.setFromAxisAngle(up, Math.atan2(-dz, dx) + Math.PI / 2);
+        const a = get(sx, sz);
+        a.sig.push(new THREE.Matrix4().compose(new THREE.Vector3(sx, 0, sz), q, one));
+        // lamp sits on the mast arm, facing oncoming traffic
+        const lx = sx - dz * 3.4 - dx * 0.19, lz = sz + dx * 3.4 - dz * 0.19;
+        const go = halfW > 7;
+        (go ? a.green : a.red).push(new THREE.Matrix4().compose(new THREE.Vector3(lx, go ? 5.42 : 6.02, lz), q, one));
+      }
       let v0 = 0;
       for (let i = 0; i < n - 1; i++) {
         const ax = rd.pts[i * 2], az = rd.pts[i * 2 + 1], bx = rd.pts[i * 2 + 2], bz = rd.pts[i * 2 + 3];
@@ -134,6 +155,14 @@ export class StreetProps {
     const lightGeo = new THREE.BoxGeometry(0.26, 0.12, 0.05);
     const warm = beacon(0xffb060, 0, 9, false), coolL = beacon(0xdfeaff, 0, 8, false);
     const headM = beacon(0xfff2d8, 0.25, 8, false), tailM = beacon(0xff1a10, 0.35, 5, false);
+    const sigGeo = mergeGeometries([
+      new THREE.CylinderGeometry(0.09, 0.12, 6.4, 6).translate(0, 3.2, 0),
+      new THREE.BoxGeometry(3.7, 0.1, 0.1).translate(-1.85, 6.3, 0),
+      new THREE.BoxGeometry(0.34, 1.05, 0.3).translate(-3.4, 5.72, 0),
+    ])!;
+    const sigMat = extendMaterial(new THREE.MeshStandardMaterial({ color: 0x1c1d1f, roughness: 0.6, metalness: 0.5 }), { key: 'pole', weather: true });
+    const bulb = new THREE.SphereGeometry(0.13, 8, 6);
+    const redM = beacon(0xff2418, 1.2, 9, false), greenM = beacon(0x22ff88, 1.1, 8, false);
     const inst = (geo: THREE.BufferGeometry, mat: THREE.Material, ms: THREE.Matrix4[], shadow = false) => {
       const im = new THREE.InstancedMesh(geo, mat, ms.length);
       ms.forEach((m, i) => im.setMatrixAt(i, m));
@@ -154,8 +183,11 @@ export class StreetProps {
       if (a.poles.length) tile.objs.push(inst(pole, poleMat, a.poles, true));
       if (a.lampsW.length) tile.objs.push(inst(lampGeo, warm, a.lampsW));
       if (a.lampsC.length) tile.objs.push(inst(lampGeo, coolL, a.lampsC));
+      if (a.sig.length) tile.objs.push(inst(sigGeo, sigMat, a.sig, true));
+      if (a.red.length) tile.objs.push(inst(bulb, redM, a.red));
+      if (a.green.length) tile.objs.push(inst(bulb, greenM, a.green));
       for (const o of tile.objs) { o.visible = false; this.group.add(o); }
-      this.tiles.push(tile);
+      if (tile.objs.length) this.tiles.push(tile);
     }
   }
 

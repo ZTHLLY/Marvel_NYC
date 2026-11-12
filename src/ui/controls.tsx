@@ -37,7 +37,6 @@ export const Slider = memo(function Slider(p: SliderProps) {
       <input
         id={id} className="rng" type="range" min={p.min} max={p.max} step={p.step} value={p.value}
         style={{ '--pct': `${pct}%` } as CSSProperties}
-        onInput={(e) => p.onChange(Number((e.target as HTMLInputElement).value))}
         onChange={(e) => p.onChange(Number(e.target.value))}
         onKeyDown={onKey}
       />

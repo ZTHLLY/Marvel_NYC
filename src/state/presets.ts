@@ -75,7 +75,7 @@ export const SCENE_PRESETS: ScenePreset[] = [
   { id: 'spidey', label: 'Spider-Man Rooftop', caption: 'Your friendly neighborhood sunset', bookmark: 'spidey',
     params: grade({ timeOfDay: 19.75, sunElevation: 5, weather: 'clear', ...WEATHER_PRESETS.clear, cloudCoverage: 0.48, atmosphere: 0.68, bloom: 0.5, dof: 0.22, focusDistance: 4.6, fov: 44 }) },
   { id: 'sanctum', label: 'Sanctum Coffee Shop', caption: 'A sorcerer on his coffee break', bookmark: 'sanctum',
-    params: grade({ timeOfDay: 20.55, sunElevation: -3.5, weather: 'clear', ...WEATHER_PRESETS.clear, wetness: 0.45, cloudCoverage: 0.35, bloom: 0.6, exposure: 1.1, dof: 0.28, focusDistance: 5.4, fov: 46, magicIntensity: 0.8 }) },
+    params: grade({ timeOfDay: 20.55, sunElevation: -3.5, weather: 'clear', ...WEATHER_PRESETS.clear, wetness: 0.45, cloudCoverage: 0.35, bloom: 0.6, exposure: 1.1, dof: 0.1, focusDistance: 5.0, fov: 46, magicIntensity: 0.8 }) },
   { id: 'fog', label: 'Foggy Morning', caption: 'Layered silhouettes in the mist', bookmark: 'hudson',
     params: grade({ timeOfDay: 7.4, sunElevation: 17, weather: 'fog', ...WEATHER_PRESETS.fog, saturation: 0.42, fov: 30 }) },
   { id: 'overcast', label: 'Overcast Day', caption: 'Soft light, architectural clarity', bookmark: 'overview',

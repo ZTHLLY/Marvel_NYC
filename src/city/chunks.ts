@@ -22,6 +22,8 @@ interface Chunk {
   queued: boolean;
   detailQueued: boolean;
   core: boolean;
+  /** whether this chunk's buildings are currently included in `builtBuildings` */
+  counted: boolean;
 }
 
 /**
@@ -55,7 +57,7 @@ export class ChunkManager {
       const key = ix + ',' + iz;
       let c = this.chunks.get(key);
       if (!c) {
-        c = { key, ix, iz, cx: (ix + 0.5) * CHUNK, cz: (iz + 0.5) * CHUNK, recs: [], maxH: 0, mesh: null, detail: null, gen: 0, detailGen: 0, queued: false, detailQueued: false, core: false };
+        c = { key, ix, iz, cx: (ix + 0.5) * CHUNK, cz: (iz + 0.5) * CHUNK, recs: [], maxH: 0, mesh: null, detail: null, gen: 0, detailGen: 0, queued: false, detailQueued: false, core: false, counted: false };
         this.chunks.set(key, c); this.list.push(c);
       }
       c.recs.push(b);
@@ -84,8 +86,14 @@ export class ChunkManager {
     this.ctx.p = params;
     this.generation++;
     this.palette.generate(params.seed, params.archVariation);
+    // detail meshes were planned from the previous parameters: drop them now, they rebuild with their chunk
+    for (const c of this.list) { this.dropDetail(c); c.detailGen = 0; }
   }
-  setParams(params: Params) { this.ctx.p = params; }
+  /** Non-generation parameters apply at once; generation keys only change through regenerate(). */
+  setParams(params: Params) {
+    const cur = this.ctx.p;
+    this.ctx.p = { ...params, heightScale: cur.heightScale, density: cur.density, skylineVariation: cur.skylineVariation, archVariation: cur.archVariation, seed: cur.seed };
+  }
 
   private buildMass(c: Chunk) {
     const mb = new MeshBuilder(c.recs.length * 96);
@@ -101,7 +109,8 @@ export class ChunkManager {
       c.mesh = mesh;
       this.group.add(mesh);
     } else c.mesh = null;
-    if (old) { this.group.remove(old); old.geometry.dispose(); } else this.builtBuildings += c.recs.length;
+    if (old) { this.group.remove(old); old.geometry.dispose(); }
+    if (!c.counted) { c.counted = true; this.builtBuildings += c.recs.length; }
     c.gen = this.generation;
   }
 
@@ -142,7 +151,7 @@ export class ChunkManager {
         if (c.gen !== this.generation && !c.queued) { c.queued = true; this.queue.push(c); }
       } else if (d > reach * 1.18 && c.mesh) {
         this.group.remove(c.mesh); c.mesh.geometry.dispose(); c.mesh = null; c.gen = 0;
-        this.builtBuildings -= c.recs.length;
+        if (c.counted) { c.counted = false; this.builtBuildings -= c.recs.length; }
         this.dropDetail(c); c.detailGen = 0;
       }
       const dd = Math.hypot(d, Math.max(0, cam.y - c.maxH) * 0.8);
@@ -157,6 +166,8 @@ export class ChunkManager {
       while (this.queue.length && performance.now() - t0 < budgetMs) {
         const c = this.queue.pop()!;
         c.queued = false;
+        // the camera may have moved on since this chunk was queued
+        if (Math.hypot(c.cx - cam.x, c.cz - cam.z) > renderDist * (c.maxH > 150 ? 1.6 : c.maxH > 60 ? 1.15 : 1) * 1.18) continue;
         this.buildMass(c);
       }
     }

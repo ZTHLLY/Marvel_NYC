@@ -110,23 +110,28 @@ export class Engine {
   private setLoading(progress: number, label: string, done = false) { useStore.getState().ui({ loading: { progress, label, done } }); }
 
   private async load() {
+    const gone = () => this.disposed;
     try {
       this.setLoading(0.05, 'Downloading NYC Open Data footprints…');
       const data = await loadCityData();
-      if (this.disposed) return;
+      if (gone()) return;
       this.data = data;
       this.setLoading(0.2, 'Laying out streets, parks and rivers…');
       await nextFrame();
+      if (gone()) return;
       this.ground = buildGround(data);
       this.scene.add(this.ground.group);
       await nextFrame();
+      if (gone()) return;
       this.setLoading(0.32, 'Planting trees…');
       this.trees = buildTrees(data, this.ground.grid, this.ground.isLand);
       this.scene.add(this.trees);
       await nextFrame();
+      if (gone()) return;
       this.setLoading(0.4, 'Raising landmarks…');
-      this.extras = await buildWorldExtras(this, data, this.ground);
-      if (this.disposed) return;
+      const extras = await buildWorldExtras(this, data, this.ground);
+      if (gone()) { disposeTree(extras.group); extras.dispose(); return; }
+      this.extras = extras;
       const zones = Object.values(SITES).filter((s) => s.clear > 0).map((s) => ({ x: s.x, z: s.z, r: s.clear })).concat(this.extras.clearZones);
       this.chunks = new ChunkManager(data, this.palette, this.ground.grid, this.params, zones);
       this.scene.add(this.chunks.group);
@@ -138,14 +143,15 @@ export class Engine {
         this.shadowDirty = true;
         const done = 1 - this.chunks.pending / Math.max(1, total);
         this.setLoading(0.45 + 0.54 * clamp(done, 0, 1), `Generating Manhattan… ${this.chunks.builtBuildings.toLocaleString()} buildings`);
-        if (!more || this.disposed) break;
+        if (!more) break;
         await nextFrame();
+        if (gone()) return;
       }
       this.ready = true;
       this.setLoading(1, 'Welcome to New York', true);
     } catch (err) {
       console.error(err);
-      this.setLoading(0, 'Failed to load city data: ' + (err as Error).message);
+      if (!gone()) this.setLoading(0, 'Failed to load city data: ' + (err as Error).message);
     }
   }
 
@@ -344,15 +350,33 @@ export class Engine {
     this.unsub.forEach((u) => u());
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
     this.rig.dispose();
+    // free every GPU resource still attached to the scene *before* the sub-systems detach their groups
+    disposeTree(this.scene);
     this.chunks?.dispose();
     this.extras?.dispose();
     this.sky.dispose();
     this.refl.dispose();
     this.post.dispose();
-    this.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry) m.geometry.dispose(); });
+    this.palette.texture.dispose();
+    this.sun.shadow.map?.dispose();
     this.renderer.dispose();
+    this.renderer.forceContextLoss();
     if ((window as any).__forge?.engine === this) delete (window as any).__forge;
   }
+}
+
+/** Dispose geometries, materials and their textures below an object. */
+function disposeTree(root: THREE.Object3D) {
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    m.geometry?.dispose?.();
+    const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
+    for (const mat of mats) {
+      for (const v of Object.values(mat as unknown as Record<string, unknown>)) if (v && (v as THREE.Texture).isTexture) (v as THREE.Texture).dispose();
+      mat.dispose();
+    }
+    (o as THREE.InstancedMesh).isInstancedMesh && (o as THREE.InstancedMesh).dispose();
+  });
 }
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
