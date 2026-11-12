@@ -288,7 +288,7 @@ export function buildSanctum(palette: StylePalette, data: CityData): SanctumBuil
   return {
     group, mandala, lights: lamps, toWorld,
     clear: [{ x: c1.x, z: c1.z, r: 12.5 }, { x: c2.x, z: c2.z, r: 9.5 }],
-    strange: { pos: toWorld(15.0, 0, STREET - SIDEWALK + 0.75), yaw: yawWorld(0.9, 0.25) },
+    strange: { pos: toWorld(16.3, 0, STREET - SIDEWALK + 0.7), yaw: yawWorld(0.9, 0.3) },
     strangeAlt: { pos: toWorld(1.9, 0.82, 1.3), yaw: yawWorld(0.25, 1) },
   };
 }

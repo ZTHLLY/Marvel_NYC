@@ -41,9 +41,9 @@ export const BOOKMARKS: Bookmark[] = [
   { id: 'overview', label: 'High Altitude', caption: 'The whole island', preset: 'golden',
     pos: P(40.7050, -74.0420, 3100), target: P(40.7500, -73.9850, 0), fov: 36 },
   { id: 'baxter', label: 'Baxter Building', caption: 'Home of the Fantastic Four', preset: 'blue',
-    pos: off(S.baxter, -210, 150, 260), target: off(S.baxter, 0, 150, 0), fov: 38 },
+    pos: off(S.baxter, -150, 262, 250), target: off(S.baxter, 0, 150, 0), fov: 40 },
   { id: 'bugle', label: 'Daily Bugle', caption: 'Stop the presses', preset: 'golden',
-    pos: off(S.bugle, 160, 120, 190), target: off(S.bugle, 0, 112, 0), fov: 38 },
+    pos: off(S.bugle, -52, 146, 128), target: off(S.bugle, 0, 117, 0), fov: 42 },
 ];
 
 export interface ScenePreset {
@@ -75,7 +75,7 @@ export const SCENE_PRESETS: ScenePreset[] = [
   { id: 'spidey', label: 'Spider-Man Rooftop', caption: 'Your friendly neighborhood sunset', bookmark: 'spidey',
     params: grade({ timeOfDay: 19.75, sunElevation: 5, weather: 'clear', ...WEATHER_PRESETS.clear, cloudCoverage: 0.48, atmosphere: 0.68, bloom: 0.5, dof: 0.22, focusDistance: 4.6, fov: 44 }) },
   { id: 'sanctum', label: 'Sanctum Coffee Shop', caption: 'A sorcerer on his coffee break', bookmark: 'sanctum',
-    params: grade({ timeOfDay: 20.55, sunElevation: -3.5, weather: 'clear', ...WEATHER_PRESETS.clear, wetness: 0.45, cloudCoverage: 0.35, bloom: 0.6, exposure: 1.1, dof: 0.1, focusDistance: 5.0, fov: 46, magicIntensity: 0.8 }) },
+    params: grade({ timeOfDay: 20.55, sunElevation: -3.5, weather: 'clear', ...WEATHER_PRESETS.clear, wetness: 0.45, cloudCoverage: 0.35, bloom: 0.6, exposure: 1.1, dof: 0.1, focusDistance: 3.4, fov: 46, magicIntensity: 0.8 }) },
   { id: 'fog', label: 'Foggy Morning', caption: 'Layered silhouettes in the mist', bookmark: 'hudson',
     params: grade({ timeOfDay: 7.4, sunElevation: 17, weather: 'fog', ...WEATHER_PRESETS.fog, saturation: 0.42, fov: 30 }) },
   { id: 'overcast', label: 'Overcast Day', caption: 'Soft light, architectural clarity', bookmark: 'overview',
