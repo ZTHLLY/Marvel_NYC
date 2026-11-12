@@ -53,6 +53,10 @@ export class Engine {
   ready = false;
   /** points the camera may approach closely at altitude (hero figures) — keeps the near plane from clipping them */
   closeTargets: THREE.Vector3[] = [];
+  /** adaptive resolution: drops while navigation is slow, recovers when there is headroom or the view rests */
+  private dynScale = 1;
+  private frameAvg = 16;
+  private lastDyn = 0;
   private probeDirty = true;
   private probePos = new THREE.Vector3(1e9, 0, 0);
   private probeTmp = new THREE.Vector3();
@@ -162,7 +166,7 @@ export class Engine {
     const w = Math.max(2, this.canvas.clientWidth), h = Math.max(2, this.canvas.clientHeight);
     this.viewW = w; this.viewH = h;
     if (this.capturing) return;
-    const pr = Math.min(window.devicePixelRatio || 1, PIXEL_RATIO[this.params.quality] ?? 1.5);
+    const pr = Math.min(window.devicePixelRatio || 1, PIXEL_RATIO[this.params.quality] ?? 1.5) * this.dynScale;
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(w, h, false);
     this.post.setSize(w, h);
@@ -331,6 +335,14 @@ export class Engine {
       if (working) { this.shadowDirty = true; this.probeDirty = true; }
     }
     if (this.rig.moving || working) this.idleFrames = 0; else this.idleFrames++;
+    // adaptive quality: keep navigation responsive on slower GPUs, restore full resolution at rest
+    this.frameAvg += (dt * 1000 - this.frameAvg) * 0.08;
+    if (now - this.lastDyn > 1500 && this.ready) {
+      let next = this.dynScale;
+      if (this.rig.moving && this.frameAvg > 30) next = Math.max(0.6, this.dynScale * 0.85);
+      else if (this.dynScale < 1 && (this.idleFrames > 30 || this.frameAvg < 15)) next = Math.min(1, this.dynScale / 0.85);
+      if (next !== this.dynScale) { this.dynScale = next; this.lastDyn = now; this.resize(); this.idleFrames = Math.min(this.idleFrames, 31); }
+    }
     // static world: once everything has settled, drop to a slow shimmer cadence to save power
     const idle = this.idleFrames > 90;
     if (!idle || this.frames % 3 === 0) {
