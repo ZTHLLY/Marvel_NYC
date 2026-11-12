@@ -393,12 +393,18 @@ const F_SURFACE = /* glsl */ `
         // ceiling light panels for offices
         shade += cf * step(0.0, rd.y) * step(0.5, fract(hp.z * 0.7)) * vS4.w * 0.8;
         room = mix(vec3(0.75, 0.72, 0.66), vec3(0.6, 0.66, 0.74), rr2) * shade;
+        if (isGround > 0.5) {
+          // shop interiors: shelves of merchandise on the back wall, darker floor displays
+          vec2 mc = floor(vec2(hp.x * 1.5, hp.y * 2.6));
+          vec3 merch = 0.35 + 0.65 * vec3(h21(mc + id * 3.0), h21(mc + id * 3.0 + 3.1), h21(mc + id * 3.0 + 7.7));
+          room *= mix(vec3(0.8), merch, back * 0.75) * (0.55 + 0.45 * step(0.12, fract(hp.y * 2.6)));
+        }
         // blinds / curtains
         float blind = step(1.0 - rCell * 0.75 * step(0.4, rr2), wf.y) * (1.0 - isGround);
         room = mix(room, vec3(0.62, 0.6, 0.55) * (0.8 + 0.2 * step(0.5, fract(wf.y * 14.0))), blind * 0.85);
         room = mix(room, vec3(0.6), smoothstep(0.15, 0.3, lodc));
       }
-      float nightGain = mix(0.1, 1.0, smoothstep(0.0, 0.85, uNight)) * (isGround > 0.5 ? mix(1.5, 0.7, uNight) : 1.0);
+      float nightGain = mix(0.1, 1.0, smoothstep(0.0, 0.85, uNight)) * (isGround > 0.5 ? mix(1.5, 0.5, uNight) : 1.0);
       vec3 interior = room * (lit * litCol * inten * 2.6 * nightGain + (1.0 - uNight) * 0.2 * (0.45 + 0.55 * rr2));
       float fres = pow(1.0 - max(dot(V, wN), 0.0), 3.0);
       vec3 glassCol = vS2.rgb * (0.9 + 0.2 * rCell);

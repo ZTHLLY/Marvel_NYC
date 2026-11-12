@@ -15,14 +15,15 @@ const url = opt('url', 'http://127.0.0.1:5173/?fresh=1');
 const out = opt('out', 'shots');
 const W = +opt('w', 1600), H = +opt('h', 900);
 const settle = +opt('settle', 1200);
+const dpr = +opt('dpr', 1);
 const evalJs = opt('eval', '');
 fs.mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch({
   channel: 'chrome', headless: true,
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--enable-webgl', '--hide-scrollbars', '--force-device-scale-factor=1'],
+  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--enable-webgl', '--hide-scrollbars', ...(dpr === 1 ? ['--force-device-scale-factor=1'] : [])],
 });
-const page = await browser.newPage({ viewport: { width: W, height: H } });
+const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: dpr });
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(`[${m.type()}] ${m.text()}`); });
 page.on('pageerror', (e) => errors.push('[pageerror] ' + e.message));

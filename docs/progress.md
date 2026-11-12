@@ -28,6 +28,30 @@ _Last updated: 2026-11-13._ A replacement engineer/agent should read this file, 
 * Frame time (1600×900, headless): High 12–17 ms, Medium 10 ms, Low 5 ms.
 * Not verified: Safari / Firefox / Windows GPUs; real-display HiDPI behaviour; long interactive sessions (memory growth).
 
+## Measured on the development machine (Apple M5, headless Chrome + ANGLE/Metal, 1600×900)
+| Scenario | Result |
+| --- | --- |
+| Frame time, High — skyline / whole-island overview / street level | 12 ms / 17 ms / 12.5 ms |
+| Frame time, Medium / Low (skyline) | 10 ms / 5 ms |
+| Retina-like 1470×956 @2x (2205×1434 rendered) — High: skyline / overview / street / rooftop | 9.5 / 21.6 / 15.2 / 17.3 ms |
+| Same — Ultra skyline (2940×1912) · Medium skyline / street | 20 ms · 6.3 / 10.4 ms |
+| Full-city regeneration after a seed change | ≈ 1.2 s, progressive, old meshes stay until replaced |
+| Initial load to interactive (local dev server) | 1–4 s |
+| Export 3840×2160 | 0.5–0.7 s, 14 MB PNG |
+| Export 7680×4320 | succeeded, 53–55 MB PNG |
+| Leak check (4 seed regenerations + height/density + reset + fly-away/return) | geometry count stable (673 → 678), JS heap returns to baseline |
+| Interaction test (focus, fly keys, manual pose, wheel, drag, hero toggles, preset save/load/import) | all pass (scripted via `tools/shots.mjs --eval`) |
+
+Independent reviews (sub-agents that did not write the code): code review **APPROVE** (medium findings fixed), security review
+**APPROVE** after fixes, acceptance verification **APPROVE** (19 PASS, 2 PARTIAL: Doctor Strange's likeness, cross-device performance).
+
+## Research notes (spec §2.1)
+* Local references: aerial Midtown (density, haze, tree-lined canyons), sunset skyline (orange→violet gradient, silhouettes), rainy Times Square (neon on wet asphalt).
+* Avengers Tower: in the films the tower stands on the MetLife / Pan Am site at 200 Park Avenue — the lower floors echo that slab while the upper tower is a fictional swept form with an aircraft deck and the "A" mark. Our version keeps that logic with an original silhouette. Sources: en.wikipedia.org/wiki/Stark_Tower, mculocationscout.com (Stark/Avengers Tower).
+* Sanctum Sanctorum: 177A Bleecker Street, Greenwich Village; a three-storey townhouse whose great round "Window of the Worlds" (reported ≈14 ft across) carries the Seal of the Vishanti. Ours: three storeys + mansard, 4.6 m round window with an original leaded pattern. Sources: en.wikipedia.org/wiki/Sanctum_Sanctorum_(Marvel_Comics), marvel.fandom.com/wiki/Sanctum_Sanctorum.
+* Baxter Building (42nd & Madison) and Daily Bugle (39th & Second) follow their comics addresses; MCU continuity has no canonical exterior for either, so both are original designs.
+* Geography: NYC Open Data (see `docs/asset-sources.md`). OpenStreetMap/Overpass was attempted first and was at capacity.
+
 ## Bugs found and fixed during validation (keep in mind)
 * Mirror-like sun glints overflowed half-float → `Inf` → bloom turned the whole frame black at certain sun angles.
   Fixed by clamping radiance in `extendMaterial` (and sky/water). Any new custom shader must clamp too.
@@ -35,12 +59,12 @@ _Last updated: 2026-11-13._ A replacement engineer/agent should read this file, 
 * `Object3D.getWorldDirection` needs `updateMatrixWorld()` first after setting a pose (`cameraRig.ts`).
 
 ## Known limitations (honest list)
-* **Characters**: procedural costumes on the Mixamo X Bot mannequin. Spider-Man reads well (masked, suit-only). Doctor Strange
-  is recognisable by silhouette (cloak, collar, amulet, coffee) but his painted face is stylised up close. Iron Man is the weakest
+* **Characters**: procedural costumes on the (re-proportioned) Mixamo X Bot mannequin. Spider-Man reads well (masked, suit-only). Doctor Strange
+  is recognisable (cloak, collar, amulet, robe, coffee, sculpted hair / goatee) but his face is a stylised caricature, not a likeness. Iron Man is the weakest
   (smooth mannequin body, no armour plating geometry). No licensed film-accurate models were available.
 * **Avengers Tower / Baxter / Bugle** are original interpretations, not replicas of any film asset.
 * **Glass** reflects a single local environment probe (baked at the camera's position, min. 120 m up) plus the ground-plane mirror — plausible, not exact; no screen-space or ray-traced reflections.
-* **Streets**: no traffic lights, signs or pedestrians; cars are simple; kerbs are painted, not raised.
+* **Streets**: traffic signals, lamps, parked/queued cars and shop signage exist, but there are no street-name signs, scaffolding or pedestrians; cars are simple; kerbs are painted, not raised.
 * **Terrain** is flat. **Bridges** are simplified; tower coordinates are approximate.
 * **New Jersey** shoreline is hand-traced; its streets/buildings are synthetic. Waterfront lots without streets stay empty.
 * Setbacks are procedural: a real tower's exact massing is not reproduced except for the Empire State and Chrysler buildings.
@@ -53,7 +77,7 @@ _Last updated: 2026-11-13._ A replacement engineer/agent should read this file, 
 ## Next recommended actions (highest visual value first)
 1. Replace the mannequin with properly licensed, sculpted character meshes (or sculpt armour/hair/face geometry).
 2. Screen-space reflections (or several blended probes) for accurate inter-building reflections at street level.
-3. Street dressing: traffic signals, signage, scaffolding, pedestrians as static figures; raised kerbs.
+3. Street dressing: street signs, scaffolding, static pedestrians, raised kerbs, richer car models.
 4. Real massing for more icons (One WTC, Hudson Yards, 432 Park, Citigroup, Flatiron) and richer Art-Deco crowns.
 5. Cascaded shadows for crisper street-level shadows inside wide shots.
 6. Worker-thread chunk generation to remove the brief hitch when regenerating the whole city.

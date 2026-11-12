@@ -94,12 +94,21 @@ export class OuterCity {
     const c = Math.cos(gAng), s = Math.sin(gAng);
     const BW = 78, BL = 142;
     const [ox, oz] = ll(40.74, -74.03);
-    for (let i = -78; i <= 84; i++) for (let j = -84; j <= 96; j++) {
+    for (let i = -112; i <= 84; i++) for (let j = -84; j <= 96; j++) {
       const bx = ox + (i * BW) * c - (j * BL) * s, bz = oz + (i * BW) * s + (j * BL) * c;
-      if (bx < -9800 || bz < this.data.bbox.minZ - 3000 || bz > this.data.bbox.maxZ + 2200) continue;
+      if (bx < -12500 || bz < this.data.bbox.minZ - 3000 || bz > this.data.bbox.maxZ + 2200) continue;
       if (!pointInPoly(bx, bz, nj) || !pointInPoly(bx + 60, bz, nj)) continue;
       const hv = hash2(i * 13 + 5, j * 7 + p.seed);
-      if (hv < 0.12) continue; // parks, yards, rail cuts
+      // neighbourhood character varies over coarse regions: grid orientation, yards, industry
+      const region = hash2(Math.floor(i / 9) * 31 + 3, Math.floor(j / 7) * 17 + 11);
+      const rAng = gAng + (region - 0.5) * 0.5;
+      if (hv < 0.1 + (region > 0.82 ? 0.45 : 0)) continue; // parks, yards, rail cuts
+      if (region < 0.16) {
+        // industrial tracts: one or two big sheds per block
+        const n2 = hv > 0.55 ? 2 : 1;
+        for (let k = 0; k < n2; k++) { const ly = n2 === 1 ? 0 : (k - 0.5) * BL * 0.5; boxes.push({ x: bx - ly * s, z: bz + ly * c, w: BW - 18, d: BL / n2 - 16, h: (7 + r() * 8) * hs, ang: rAng, row: rowOf(r() < 0.6 ? Family.Industrial : Family.Waterfront), seed: r() }); }
+        continue;
+      }
       const depth = Math.hypot(bx - ox, bz - oz);
       const lots = depth > 3200 ? 2 : 3 + Math.floor(hv * 3);
       for (let k = 0; k < lots; k++) for (const sd of [-1, 1]) {
@@ -107,7 +116,8 @@ export class OuterCity {
         const x = bx + lx * c - ly * s, z = bz + lx * s + ly * c;
         let h = 8 + r() * 8 + Math.max(0, 1 - depth / 2500) * r() * 12;
         if (r() < 0.04) h += 14 + r() * 25;
-        boxes.push({ x, z, w: BW / 2 - 12, d: lw - 1.2, h: h * hs, ang: gAng, row: rowOf(h > 24 ? Family.ModernResidential : r() < 0.25 ? Family.Industrial : Family.OuterGeneric), seed: r() });
+        if (r() < 0.07) continue;
+        boxes.push({ x, z, w: (BW / 2 - 12) * (0.75 + 0.3 * r()), d: (lw - 1.2) * (0.7 + 0.3 * r()), h: h * hs, ang: rAng + (r() < 0.08 ? 0.4 : 0), row: rowOf(h > 24 ? Family.ModernResidential : r() < 0.25 ? Family.Industrial : Family.OuterGeneric), seed: r() });
       }
     }
     // ---- skyline clusters

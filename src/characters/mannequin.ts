@@ -53,6 +53,19 @@ export class Mannequin {
     return new Mannequin(SkeletonUtils.clone(base) as THREE.Group);
   }
 
+  /**
+   * A group rigidly attached to a bone whose children are authored in bind-pose (T-pose) character space, in metres.
+   * Must be called before any posing.
+   */
+  attach(bone: string): THREE.Group {
+    this.root.updateMatrixWorld(true);
+    const g = new THREE.Group();
+    g.matrixAutoUpdate = false;
+    g.matrix.copy(this.bones[bone].matrixWorld).invert();
+    this.bones[bone].add(g);
+    return g;
+  }
+
   setMaterial(mat: THREE.Material) {
     for (const m of this.meshes) { m.material = mat; m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; }
   }

@@ -285,6 +285,43 @@ function collarGeometry(y: number): THREE.BufferGeometry {
 export async function buildDoctorStrange(): Promise<Hero> {
   const m = await Mannequin.create();
   m.setMaterial(suit('suit-strange', STRANGE_SURFACE));
+  // ---- sculpted head features (the mannequin head is a smooth ovoid): hair volume, nose, brows, ears, beard
+  {
+    const head = m.attach('Head');
+    const skin = pbr({ color: new THREE.Color().setRGB(0.56, 0.36, 0.27), roughness: 0.55, weather: false });
+    const dark = pbr({ color: new THREE.Color().setRGB(0.035, 0.03, 0.028), roughness: 0.5, weather: false });
+    const blob = (mat: THREE.Material, x: number, y: number, z: number, sx: number, sy: number, sz: number, rx = 0, rz = 0) => {
+      const o = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), mat);
+      o.position.set(x, y, z); o.scale.set(sx, sy, sz); o.rotation.set(rx, 0, rz); o.castShadow = true; head.add(o); return o;
+    };
+    // swept-back hair with volume on top and silver at the temples
+    const hg = new THREE.SphereGeometry(1, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.6);
+    const hp = hg.attributes.position as THREE.BufferAttribute, hc: number[] = [];
+    for (let i = 0; i < hp.count; i++) {
+      let x = hp.getX(i), y = hp.getY(i), z = hp.getZ(i);
+      const wave = 1 + 0.05 * Math.sin(x * 9 + z * 5) + 0.07 * Math.max(0, z) * Math.max(0, y);       // quiff
+      x *= 0.0885 * wave; y *= 0.094 * wave; z *= 0.101 * wave;
+      hp.setXYZ(i, x, y, z);
+      const temple = Math.abs(x) > 0.06 && y < 0.04 && z > -0.04 ? 1 : 0;
+      const streak = 0.8 + 0.4 * Math.abs(Math.sin(x * 160 + z * 40));
+      const c = temple ? 0.34 : 0.03 * streak;
+      hc.push(c, c, c * 1.04);
+    }
+    hg.setAttribute('color', new THREE.Float32BufferAttribute(hc, 3));
+    hg.computeVertexNormals();
+    const hair = new THREE.Mesh(hg, extendMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.42 }), { key: 'hair', weather: false }));
+    hair.position.set(0, 1.722, -0.006); hair.rotation.x = -0.3; hair.castShadow = true;
+    head.add(hair);
+    blob(skin, 0, 1.661, 0.113, 0.0125, 0.027, 0.02, -0.25);            // nose bridge
+    blob(skin, 0, 1.647, 0.117, 0.0165, 0.0105, 0.015);                 // nose tip
+    for (const s of [-1, 1]) {
+      blob(dark, s * 0.034, 1.7, 0.101, 0.021, 0.0052, 0.011, 0, -s * 0.12);   // brows
+      blob(skin, s * 0.088, 1.672, 0.004, 0.008, 0.021, 0.013);                // ears
+      blob(dark, s * 0.024, 1.602, 0.099, 0.0055, 0.018, 0.008, 0, s * 0.25);     // beard connects moustache to chin
+    }
+    blob(dark, 0, 1.63, 0.111, 0.027, 0.0046, 0.0085);                  // moustache
+    blob(dark, 0, 1.584, 0.095, 0.023, 0.02, 0.015);                    // goatee
+  }
   // relaxed contrapposto
   m.twist('Hips', 0, 0, 1, 0.045).twist('Hips', 0, 1, 0, -0.12);
   m.aim('Spine', 0.02, 1, 0.03).aim('Spine2', -0.02, 1, -0.01).aim('Neck', 0, 1, 0.06);
