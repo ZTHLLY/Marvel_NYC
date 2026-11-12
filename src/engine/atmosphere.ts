@@ -283,6 +283,27 @@ export class Sky {
     return true;
   }
 
+  /**
+   * Local reflection probe: bake the environment from the *actual city* around a point, so glass picks up
+   * the skyline band, sunlit neighbours and (at night) the glow of lit windows instead of bare sky.
+   */
+  bakeLocal(scene: THREE.Scene, position: THREE.Vector3) {
+    const u = this.material.uniforms;
+    const disc = u.uSunDisc.value;
+    u.uSunDisc.value = disc * 0.12;
+    const keep = this.mesh.position.clone();
+    this.mesh.position.copy(position);
+    this.mesh.updateMatrixWorld();
+    const old = this.envTarget;
+    this.envTarget = this.pmrem.fromScene(scene, 0, 2, 70000, { size: 256, position });
+    this.mesh.position.copy(keep);
+    this.mesh.updateMatrixWorld();
+    u.uSunDisc.value = disc;
+    scene.environment = this.envTarget.texture;
+    old?.dispose();
+    this.dirty = false;
+  }
+
   follow(camera: THREE.Camera) { this.mesh.position.copy(camera.position); }
 
   dispose() { this.pmrem.dispose(); this.envTarget?.dispose(); this.material.dispose(); this.mesh.geometry.dispose(); }

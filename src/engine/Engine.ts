@@ -53,6 +53,9 @@ export class Engine {
   ready = false;
   /** points the camera may approach closely at altitude (hero figures) — keeps the near plane from clipping them */
   closeTargets: THREE.Vector3[] = [];
+  private probeDirty = true;
+  private probePos = new THREE.Vector3(1e9, 0, 0);
+  private probeTmp = new THREE.Vector3();
 
   constructor(private canvas: HTMLCanvasElement) {
     this.params = useStore.getState().params;
@@ -296,7 +299,15 @@ export class Engine {
     cam.updateMatrixWorld();
     this.sky.follow(cam);
     this.updateShadow(now);
-    this.sky.update(now, this.params.textureQuality, this.capturing);
+    if (this.sky.update(now, this.params.textureQuality, this.capturing)) this.probeDirty = true;
+    // once the view has settled, replace the sky-only environment with a probe of the real surroundings
+    if (this.params.textureQuality >= 2 && this.ready && (this.capturing || (this.idleFrames > 24 && !this.rig.transitioning))) {
+      const p = this.probeTmp.set(cam.position.x, clamp(cam.position.y, 120, 900), cam.position.z);
+      if (this.probeDirty || p.distanceTo(this.probePos) > 260) {
+        this.sky.bakeLocal(this.scene, p);
+        this.probePos.copy(p); this.probeDirty = false;
+      }
+    }
     this.extras?.update(dt, now, cam);
     this.trees?.userData.update?.(cam.position, 420 * this.params.lodBias * (this.capturing ? 2 : 1));
     if (this.refl.enabled) this.refl.render(this.renderer, this.scene, cam);
@@ -317,7 +328,7 @@ export class Engine {
     let working = false;
     if (this.chunks && this.ready) {
       working = this.chunks.update(this.camera.position, this.params, this.rig.moving ? 5 : 12);
-      if (working) this.shadowDirty = true;
+      if (working) { this.shadowDirty = true; this.probeDirty = true; }
     }
     if (this.rig.moving || working) this.idleFrames = 0; else this.idleFrames++;
     // static world: once everything has settled, drop to a slow shimmer cadence to save power

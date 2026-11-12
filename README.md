@@ -56,7 +56,7 @@ See `docs/architecture.md`, `docs/progress.md` (status, known limitations, next 
 * The three hero figures are an *original costume shader painted on a posed mannequin* (Mixamo X Bot), not film-accurate
   character models. They read well at the composed distances; close-ups — Doctor Strange's face in particular — look stylised.
 * New Jersey's shoreline and street grid are hand-traced / synthetic (the open data stops at the state line).
-* Terrain is flat; the four East River bridges are simplified; glass reflects the sky and a ground-plane mirror, not neighbouring towers.
+* Terrain is flat; the four East River bridges are simplified; glass reflects one local environment probe, not exact neighbours.
 
 This is an unofficial fan project. Marvel, Avengers, Spider-Man, Doctor Strange and related names are trademarks of
 Marvel Characters, Inc.; no Marvel artwork, models, logos or footage are included.

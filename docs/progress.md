@@ -39,7 +39,7 @@ _Last updated: 2026-11-13._ A replacement engineer/agent should read this file, 
   is recognisable by silhouette (cloak, collar, amulet, coffee) but his painted face is stylised up close. Iron Man is the weakest
   (smooth mannequin body, no armour plating geometry). No licensed film-accurate models were available.
 * **Avengers Tower / Baxter / Bugle** are original interpretations, not replicas of any film asset.
-* **Glass** reflects sky + ground-plane mirror only (no screen-space or ray-traced inter-building reflections).
+* **Glass** reflects a single local environment probe (baked at the camera's position, min. 120 m up) plus the ground-plane mirror — plausible, not exact; no screen-space or ray-traced reflections.
 * **Streets**: no traffic lights, signs or pedestrians; cars are simple; kerbs are painted, not raised.
 * **Terrain** is flat. **Bridges** are simplified; tower coordinates are approximate.
 * **New Jersey** shoreline is hand-traced; its streets/buildings are synthetic. Waterfront lots without streets stay empty.
@@ -51,7 +51,7 @@ _Last updated: 2026-11-13._ A replacement engineer/agent should read this file, 
 
 ## Next recommended actions (highest visual value first)
 1. Replace the mannequin with properly licensed, sculpted character meshes (or sculpt armour/hair/face geometry).
-2. Screen-space reflections or a low-res city cube-map so glass towers reflect their neighbours.
+2. Screen-space reflections (or several blended probes) for accurate inter-building reflections at street level.
 3. Street dressing: traffic signals, signage, scaffolding, pedestrians as static figures; raised kerbs.
 4. Real massing for more icons (One WTC, Hudson Yards, 432 Park, Citigroup, Flatiron) and richer Art-Deco crowns.
 5. Cascaded shadows for crisper street-level shadows inside wide shots.

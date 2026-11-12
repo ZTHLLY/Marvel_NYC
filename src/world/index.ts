@@ -104,8 +104,9 @@ export async function buildWorldExtras(engine: Engine, data: CityData, ground: G
     const right = new THREE.Vector3(fwd.z, 0, -fwd.x);
     setBookmark('spidey', p.clone().addScaledVector(fwd, -3.7).addScaledVector(right, 2.2).add(new THREE.Vector3(0, 1.1, 0)), p.clone().addScaledVector(fwd, 40).addScaledVector(right, -13).add(new THREE.Vector3(0, -2.5, 0)), 44);
     setBookmark('sanctum', sanctum.toWorld(19.2, 1.3, 14.7), sanctum.toWorld(19.2 - 16.6, 1.3 + 4.6, 14.7 - 10.8), 46);
-    const a = avengers.ironman.pos;
-    setBookmark('avengers', new THREE.Vector3(a.x + 150, 232, a.z + 470), new THREE.Vector3(SITES.avengers.x - 20, 250, SITES.avengers.z), 34);
+    // from the east at dusk: the blade-fin and landing deck in profile against the sunset, Chrysler alongside
+    const s = SITES.avengers;
+    setBookmark('avengers', new THREE.Vector3(s.x + 468, 255, s.z + 406), new THREE.Vector3(s.x - 70, 284, s.z - 10), 34);
   }
 
   let lastDetail = -1;

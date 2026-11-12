@@ -23,6 +23,7 @@ Metres. `+X` east, `+Z` south (north is `-Z`), `+Y` up. Origin = 200 Park Avenue
 | `src/engine/materials.ts` | Shared uniforms; `extendMaterial()` injects height fog, weather response and HDR clamping into three materials |
 | `src/engine/post.ts` | HDR composer: N8AO → bloom → depth of field → AgX grade (exposure, contrast, saturation, split-tone, vignette, grain) → SMAA |
 | `src/engine/reflection.ts` | Planar mirror of the world about y = 0, sampled by rivers and wet streets |
+| (in `atmosphere.ts` / `Engine.ts`) | Local reflection probe: when the view settles, the IBL environment is re-baked from the real city around the camera (≥ Texture Quality 2), so glass reflects the skyline band and lit windows rather than bare sky |
 | `src/engine/cameraRig.ts` | Damped orbit + free-fly camera, eased bookmark transitions, manual pose |
 | `src/city/facade.ts` | Style palette (12 families × 48 variants in a float texture) and the façade shader |
 | `src/city/buildingGen.ts` | `planBuilding` (family, style, height, setbacks, crown) · `emitMass` · `emitDetail` |
