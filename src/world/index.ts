@@ -12,6 +12,7 @@ import { OuterCity } from './outer';
 import { StreetProps } from './props';
 import { WeatherFx } from './fx';
 import { Billboards } from './billboards';
+import { buildBridges } from './bridges';
 import { SITES } from '../landmarks/sites';
 import { CROSSTOWN, UPTOWN } from '../city/geo';
 import { yawFacing } from '../landmarks/kit';
@@ -49,7 +50,7 @@ export async function buildWorldExtras(engine: Engine, data: CityData, ground: G
   const sanctum: SanctumBuild = buildSanctum(palette, data);
   marvelGroup.add(avengers.group, baxter, bugle, sanctum.group);
   const perch = buildPerchTower(palette);
-  group.add(marvelGroup, perch.group, buildEmpireState(palette), buildChrysler(palette));
+  group.add(marvelGroup, perch.group, buildEmpireState(palette), buildChrysler(palette), buildBridges(palette));
 
   // ---- signage & outer city & street life
   const boards = new Billboards(data, ground);

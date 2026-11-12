@@ -11,7 +11,7 @@ export const FAMILY_COUNT = 12;
 export const VARIANTS = 48;
 export const STYLE_ROWS = FAMILY_COUNT * VARIANTS;
 /** Extra hand-authored rows appended after the procedural ones (hero buildings). */
-export const CUSTOM_ROWS = 16;
+export const CUSTOM_ROWS = 24;
 const TEX_W = 8;
 
 /** Surface codes packed into the style attribute (code = row + surface * 1024). */

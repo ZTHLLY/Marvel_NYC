@@ -20,8 +20,8 @@ const off = (site: { x: number; z: number }, dx: number, y: number, dz: number):
 
 /** Curated cinematic viewpoints. Positions were composed by eye in the running app. */
 export const BOOKMARKS: Bookmark[] = [
-  { id: 'skyline', label: 'Manhattan Skyline', caption: 'Golden hour from above the Hudson', preset: 'golden',
-    pos: P(40.7385, -74.0265, 420), target: P(40.7545, -73.9800, 150), fov: 34 },
+  { id: 'skyline', label: 'Manhattan Skyline', caption: 'Golden hour across the East River', preset: 'golden',
+    pos: P(40.7400, -73.9600, 160), target: P(40.7530, -73.9800, 190), fov: 34 },
   { id: 'avengers', label: 'Avengers Tower', caption: 'Hero shot over Park Avenue', preset: 'avengers',
     pos: off(S.avengers, 300, 215, 520), target: off(S.avengers, 0, 262, 0), fov: 36 },
   { id: 'spidey', label: 'Spider-Man Rooftop', caption: 'A quiet moment above Fifth Avenue', preset: 'spidey',
@@ -36,6 +36,8 @@ export const BOOKMARKS: Bookmark[] = [
     pos: off(S.timessquare, -18, 2.4, 95), target: off(S.timessquare, 4, 22, -60), fov: 44 },
   { id: 'snow', label: 'Snowy Manhattan', caption: 'Winter over the rooftops', preset: 'snow',
     pos: P(40.7640, -73.9925, 310), target: P(40.7500, -73.9830, 120), fov: 38 },
+  { id: 'hudson', label: 'Hudson Waterfront', caption: 'Amber light on the West Side', preset: 'golden',
+    pos: P(40.7350, -74.0235, 120), target: P(40.7560, -73.9790, 230), fov: 30 },
   { id: 'overview', label: 'High Altitude', caption: 'The whole island', preset: 'golden',
     pos: P(40.7050, -74.0420, 3100), target: P(40.7500, -73.9850, 0), fov: 36 },
   { id: 'baxter', label: 'Baxter Building', caption: 'Home of the Fantastic Four', preset: 'blue',
