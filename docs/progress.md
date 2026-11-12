@@ -47,6 +47,7 @@ _Last updated: 2026-11-13._ A replacement engineer/agent should read this file, 
 * Hiding Marvel landmarks leaves their lots empty (the real buildings there were cleared for them).
 * Trees are stylised clumps; parks have no paths/furniture geometry.
 * Full-city views draw 9–17 M triangles; integrated GPUs should use Low/Medium.
+* **Before any public release**: re-check Adobe Mixamo's terms for shipping `public/models/Xbot.glb` (or swap in a CC0 rig — only bone names matter to `mannequin.ts`), and note this is an unofficial fan work using Marvel names.
 * No CSP meta tag; `window.__forge` automation hook exists only in dev or with `?forge`.
 
 ## Next recommended actions (highest visual value first)

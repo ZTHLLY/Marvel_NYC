@@ -13,6 +13,8 @@
 
 Reference photographs in `reference/` (Unsplash / Pexels) were studied for palette, density and lighting only; none is used as a texture.
 
+**Publishing note:** the project has only been run locally. Before deploying it publicly, confirm that redistributing `Xbot.glb` inside a web build is covered by Mixamo's licence for your use, or replace it with a CC0 humanoid rig that uses the same `mixamorig` bone names.
+
 No Marvel artwork, logos, models or footage are included. All signage, emblems, costumes and buildings are original
 interpretations created in code; in-universe names appear as text only. OpenStreetMap was evaluated (Overpass was at
 capacity during development) and is not used, so no ODbL attribution is required.

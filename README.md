@@ -4,7 +4,15 @@ An interactive, cinematic 3D recreation of Marvel's New York. Fly over a Manhatt
 building footprints, restyle the light and weather, find Spider-Man on a rooftop and Doctor Strange on his coffee
 break, and export wallpapers up to 8K.
 
-![Golden hour](docs/img/skyline.jpg)
+![Golden hour across the East River](docs/img/skyline.jpg)
+
+| | | |
+| --- | --- | --- |
+| ![Avengers Tower at sunset](docs/img/avengers.jpg) | ![Spider-Man rooftop](docs/img/spidey.jpg) | ![Sanctum coffee shop](docs/img/sanctum.jpg) |
+| ![Blue hour riverfront](docs/img/riverfront.jpg) | ![Rainy Times Square](docs/img/times-square.jpg) | ![Snowy Manhattan](docs/img/snow.jpg) |
+| ![Midnight](docs/img/midtown-night.jpg) | ![The whole island](docs/img/overview.jpg) | ![Editor](docs/img/ui.jpg) |
+
+_All images are unretouched frames from the running app (1600×900, High quality)._
 
 ## Run it
 
