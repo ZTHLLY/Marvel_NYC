@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ll, gridToWorld, streetOf, aveOf, districtOf, District, pointInPoly, polyArea, BuildingRec } from '../src/city/geo';
 import { DEFAULT_PARAMS, CONTROL_SCHEMA, sunFromTime, WEATHER_PRESETS, QUALITY_PRESETS, Params } from '../src/state/params';
 import { SCENE_PRESETS, BOOKMARKS } from '../src/state/presets';
-import { sanitizeParams } from '../src/state/store';
+import { sanitizeParams, cleanPresetName } from '../src/state/store';
 import { computeAtmosphere } from '../src/engine/atmosphere';
 import { outputSize } from '../src/photo/capture';
 import { hash2, mulberry32 } from '../src/util/rng';
@@ -69,6 +69,12 @@ describe('parameters & presets', () => {
     expect(p.fov).toBe(DEFAULT_PARAMS.fov);
     expect((p as unknown as Record<string, unknown>).bogus).toBeUndefined();
     expect(sanitizeParams(null)).toEqual(DEFAULT_PARAMS);
+    // hostile / corrupt values are clamped or rejected before they can reach the renderer
+    const h = sanitizeParams({ renderDistance: 1e9, lodBias: -5, resolution: 'bogus', quality: 'ultra', heroVariant: 7, aspect: '21:9' });
+    expect(h.renderDistance).toBe(24); expect(h.lodBias).toBe(0.4); expect(h.resolution).toBe(DEFAULT_PARAMS.resolution);
+    expect(h.quality).toBe('ultra'); expect(h.heroVariant).toBe(DEFAULT_PARAMS.heroVariant); expect(h.aspect).toBe('21:9');
+    expect(sanitizeParams([1, 2, 3])).toEqual(DEFAULT_PARAMS);
+    expect(cleanPresetName('__proto__')).toBeNull(); expect(cleanPresetName('  Dusk  ')).toBe('Dusk'); expect(cleanPresetName('')).toBeNull();
   });
   it('sun is high at noon, below the horizon at midnight, and sets in the west-north-west', () => {
     expect(sunFromTime(13).el).toBeGreaterThan(60);

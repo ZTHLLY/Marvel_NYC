@@ -35,6 +35,7 @@ export class Engine {
   ground: GroundBuild | null = null;
   extras: WorldExtras | null = null;
   data: CityData | null = null;
+  private trees: THREE.Group | null = null;
   params: Params;
   private raf = 0;
   private last = performance.now();
@@ -50,6 +51,8 @@ export class Engine {
   private viewW = 1; private viewH = 1;
   capturing = false;
   ready = false;
+  /** points the camera may approach closely at altitude (hero figures) — keeps the near plane from clipping them */
+  closeTargets: THREE.Vector3[] = [];
 
   constructor(private canvas: HTMLCanvasElement) {
     this.params = useStore.getState().params;
@@ -91,7 +94,8 @@ export class Engine {
     this.unsub.push(bus.on('setCamera', (p) => { this.rig.setPose(p); }));
     this.unsub.push(bus.on('resetCamera', () => this.goto(BOOKMARKS[0])));
     this.unsub.push(bus.on('capture', (o) => { void capturePhoto(this, o.preview); }));
-    (window as any).__forge = { engine: this, store: useStore, bus, THREE, bookmarks: BOOKMARKS };
+    // automation hook for the visual-validation harness (dev server, or opt-in with ?forge on a build)
+    if (import.meta.env.DEV || new URLSearchParams(location.search).has('forge')) (window as any).__forge = { engine: this, store: useStore, bus, THREE, bookmarks: BOOKMARKS };
 
     this.raf = requestAnimationFrame(this.frame);
     void this.load();
@@ -117,7 +121,8 @@ export class Engine {
       this.scene.add(this.ground.group);
       await nextFrame();
       this.setLoading(0.32, 'Planting trees…');
-      this.scene.add(buildTrees(data, this.ground.grid, this.ground.isLand));
+      this.trees = buildTrees(data, this.ground.grid, this.ground.isLand);
+      this.scene.add(this.trees);
       await nextFrame();
       this.setLoading(0.4, 'Raising landmarks…');
       this.extras = await buildWorldExtras(this, data, this.ground);
@@ -275,8 +280,11 @@ export class Engine {
   /** Render one frame at the current renderer size (also used by the capture path). */
   renderFrame(dt: number, now: number) {
     const cam = this.camera;
-    const h = cam.position.y;
-    cam.near = clamp(h * 0.02, 0.25, 12);
+    // near plane: as far out as depth precision wants, but never beyond what the user is looking at up close
+    let prox = cam.position.y;
+    if (this.rig.mode === 'orbit' && !this.rig.transitioning) prox = Math.min(prox, this.rig.dist * 0.6);
+    for (const t of this.closeTargets) prox = Math.min(prox, cam.position.distanceTo(t) * 0.5);
+    cam.near = clamp(prox * 0.012, 0.2, 10);
     cam.far = 95000;
     cam.updateProjectionMatrix();
     cam.updateMatrixWorld();
@@ -284,6 +292,7 @@ export class Engine {
     this.updateShadow(now);
     this.sky.update(now, this.params.textureQuality, this.capturing);
     this.extras?.update(dt, now, cam);
+    this.trees?.userData.update?.(cam.position, 420 * this.params.lodBias * (this.capturing ? 2 : 1));
     if (this.refl.enabled) this.refl.render(this.renderer, this.scene, cam);
     this.post.render(dt);
   }

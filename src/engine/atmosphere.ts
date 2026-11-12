@@ -119,9 +119,9 @@ export function computeAtmosphere(p: Params): AtmoState {
 
   const ambUser = p.ambient * 2; // 0.5 → 1
   // skylight is blue, but bounce light off sunlit masonry is warm: keep fill light close to neutral
-  { const l = lum(hemiSky); hemiSky.lerp(new THREE.Color(l * 1.04, l, l * 0.97).lerp(lightColor.clone().multiplyScalar(l / Math.max(lum(lightColor), 0.05)), 0.3 * (1 - night)), 0.6); }
+  { const l = lum(hemiSky); hemiSky.lerp(new THREE.Color(l * 1.04, l, l * 0.97).lerp(lightColor.clone().multiplyScalar(l / Math.max(lum(lightColor), 0.05)), 0.3 * (1 - night)), 0.72); }
   hemiIntensity *= ambUser * 1.35;
-  const envIntensity = lerp(0.4, 0.62, 1 - night) * (0.4 + 0.6 * ambUser);
+  const envIntensity = lerp(0.4, 0.54, 1 - night) * (0.4 + 0.6 * ambUser);
 
   // fog: slider 0..1 maps exponentially; weather adds a ground layer
   const fd = p.fogDensity;

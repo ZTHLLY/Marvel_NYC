@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import {
-  DEFAULT_PARAMS, Params, QUALITY_PRESETS, WEATHER_PRESETS, sunFromTime, GroupId, WeatherKind, QualityKind,
+  DEFAULT_PARAMS, Params, QUALITY_PRESETS, WEATHER_PRESETS, sunFromTime, GroupId, WeatherKind, QualityKind, CONTROL_SCHEMA,
 } from './params';
 import { SCENE_PRESETS } from './presets';
 
@@ -48,15 +48,47 @@ function loadJSON<T>(key: string, fallback: T): T {
   } catch { return fallback; }
 }
 
-/** Validate & merge an arbitrary object onto defaults (ignores unknown keys / wrong types). */
+const SCHEMA_BY_KEY = new Map(CONTROL_SCHEMA.map((c) => [c.key, c]));
+
+/**
+ * Validate & merge an arbitrary object (pasted JSON, localStorage) onto defaults.
+ * Unknown keys and wrong types are dropped; numbers are clamped to their slider range and
+ * choices must be one of the declared options, so bad input can never reach the renderer.
+ */
 export function sanitizeParams(obj: unknown): Params {
   const out: Params = { ...DEFAULT_PARAMS };
-  if (obj && typeof obj === 'object') {
-    for (const k of Object.keys(DEFAULT_PARAMS) as (keyof Params)[]) {
-      const v = (obj as Record<string, unknown>)[k];
-      if (typeof v === typeof DEFAULT_PARAMS[k] && (typeof v !== 'number' || Number.isFinite(v))) {
-        (out as unknown as Record<string, unknown>)[k] = v;
-      }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return out;
+  for (const k of Object.keys(DEFAULT_PARAMS) as (keyof Params)[]) {
+    if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
+    let v = (obj as Record<string, unknown>)[k];
+    if (typeof v !== typeof DEFAULT_PARAMS[k]) continue;
+    const def = SCHEMA_BY_KEY.get(k);
+    if (typeof v === 'number') {
+      if (!Number.isFinite(v)) continue;
+      if (def?.options) { if (!def.options.some((o) => o.value === v)) continue; }
+      else if (def && def.min !== undefined && def.max !== undefined) v = Math.min(def.max, Math.max(def.min, v));
+    } else if (typeof v === 'string') {
+      if (!def?.options || !def.options.some((o) => o.value === v)) continue;
+    }
+    (out as unknown as Record<string, unknown>)[k] = v;
+  }
+  return out;
+}
+
+const RESERVED_NAMES = new Set(['__proto__', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty']);
+/** A user preset name is trimmed, length-limited and may not shadow Object.prototype members. */
+export function cleanPresetName(name: string): string | null {
+  const n = String(name).trim().slice(0, 48);
+  return n && !RESERVED_NAMES.has(n) ? n : null;
+}
+
+function loadUserPresets(): Record<string, Params> {
+  const raw = loadJSON<unknown>(LS_USER, {});
+  const out: Record<string, Params> = {};
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      const n = cleanPresetName(k);
+      if (n) out[n] = sanitizeParams(v);
     }
   }
   return out;
@@ -79,7 +111,7 @@ export const useStore = create<AppState>()(
     stats: { buildings: 0, chunks: 0, drawCalls: 0, triangles: 0 },
     cam: { x: 0, y: 0, z: 0, heading: 0, pitch: 0, roll: 0 },
     capture: { busy: false, message: '', previewUrl: null, previewName: '', previewSize: '' },
-    userPresets: loadJSON<Record<string, Params>>(LS_USER, {}),
+    userPresets: loadUserPresets(),
     activePreset: null,
     activeBookmark: null,
 
@@ -102,13 +134,15 @@ export const useStore = create<AppState>()(
     resetParams: () => set((s) => ({
       params: { ...DEFAULT_PARAMS, quality: s.params.quality, ...QUALITY_PRESETS[s.params.quality] }, activePreset: null,
     })),
-    saveUserPreset: (name) => {
+    saveUserPreset: (rawName) => {
+      const name = cleanPresetName(rawName);
+      if (!name) return;
       const userPresets = { ...get().userPresets, [name]: { ...get().params } };
       set({ userPresets });
       try { localStorage.setItem(LS_USER, JSON.stringify(userPresets)); } catch { /* ignore quota */ }
     },
     loadUserPreset: (name) => {
-      const p = get().userPresets[name];
+      const p = Object.prototype.hasOwnProperty.call(get().userPresets, name) ? get().userPresets[name] : null;
       if (p) set({ params: sanitizeParams(p), activePreset: null });
     },
     deleteUserPreset: (name) => {

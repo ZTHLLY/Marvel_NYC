@@ -102,6 +102,7 @@ export async function capturePhoto(engine: Engine, preview: boolean): Promise<Bl
   const url = URL.createObjectURL(blob);
   const size = `${w} × ${h} · ${(blob.size / 1e6).toFixed(1)} MB`;
   if (preview) {
+    if (s.capture.previewUrl) URL.revokeObjectURL(s.capture.previewUrl);
     s.ui({ capture: { busy: false, message: 'Preview ready' + note, previewUrl: url, previewName: name, previewSize: size } });
   } else {
     const a = document.createElement('a');

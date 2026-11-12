@@ -34,6 +34,16 @@ export class Mannequin {
       if ((o as THREE.Bone).isBone) this.bones[o.name.replace(/^mixamorig:?/, '')] = o as THREE.Bone;
       if ((o as THREE.SkinnedMesh).isSkinnedMesh) this.meshes.push(o as THREE.SkinnedMesh);
     });
+    // The X Bot has a slight hourglass build; re-proportion it toward an athletic male frame:
+    // fuller waist and chest, broader shoulders, leaner thighs (children are counter-scaled to keep limb lengths).
+    const B = this.bones;
+    const sc = (n: string, x: number, y: number, z: number) => B[n]?.scale.set(x, y, z);
+    sc('Spine', 1.13, 1, 1.1); sc('Spine2', 1.06, 1, 1.04);
+    sc('Neck', 1 / (1.13 * 1.06), 1, 1 / (1.1 * 1.04));
+    for (const side of ['Left', 'Right']) {
+      sc(side + 'Shoulder', 1.06, 1 / (1.13 * 1.06) * 1.08, 1);       // bone Y runs along the clavicle: a touch wider
+      sc(side + 'UpLeg', 0.9, 1, 0.9); sc(side + 'Leg', 1.07, 1, 1.07);
+    }
     root.updateMatrixWorld(true);
     for (const s of ['Left', 'Right']) this.palmSign[s] = this.rawPalm(s).y < 0 ? 1 : -1;   // palms face down in the T-pose
   }

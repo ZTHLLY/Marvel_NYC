@@ -221,7 +221,7 @@ export const QUALITY_PRESETS: Record<QualityKind, Partial<Params>> = {
 export const WEATHER_PRESETS: Record<WeatherKind, Partial<Params>> = {
   clear: { fogDensity: 0.3, snowCoverage: 0, wetness: 0, cloudCoverage: 0.35, atmosphere: 0.55 },
   overcast: { fogDensity: 0.38, snowCoverage: 0, wetness: 0.12, cloudCoverage: 0.97, atmosphere: 0.3 },
-  fog: { fogDensity: 0.86, snowCoverage: 0, wetness: 0.25, cloudCoverage: 0.8, atmosphere: 0.85 },
+  fog: { fogDensity: 0.62, snowCoverage: 0, wetness: 0.25, cloudCoverage: 0.8, atmosphere: 0.85 },
   rain: { fogDensity: 0.55, snowCoverage: 0, wetness: 1, cloudCoverage: 0.95, atmosphere: 0.6 },
   snow: { fogDensity: 0.58, snowCoverage: 0.85, wetness: 0.1, cloudCoverage: 0.9, atmosphere: 0.5 },
 };

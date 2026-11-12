@@ -21,7 +21,7 @@ const off = (site: { x: number; z: number }, dx: number, y: number, dz: number):
 /** Curated cinematic viewpoints. Positions were composed by eye in the running app. */
 export const BOOKMARKS: Bookmark[] = [
   { id: 'skyline', label: 'Manhattan Skyline', caption: 'Golden hour across the East River', preset: 'golden',
-    pos: P(40.7400, -73.9600, 160), target: P(40.7530, -73.9800, 190), fov: 34 },
+    pos: P(40.7402, -73.9612, 185), target: P(40.7530, -73.9800, 195), fov: 34 },
   { id: 'avengers', label: 'Avengers Tower', caption: 'Hero shot over Park Avenue', preset: 'avengers',
     pos: off(S.avengers, 300, 215, 520), target: off(S.avengers, 0, 262, 0), fov: 36 },
   { id: 'spidey', label: 'Spider-Man Rooftop', caption: 'A quiet moment above Fifth Avenue', preset: 'spidey',
@@ -73,11 +73,11 @@ export const SCENE_PRESETS: ScenePreset[] = [
   { id: 'snow', label: 'Snowy New York', caption: 'Rooftops under fresh snow', bookmark: 'snow',
     params: grade({ timeOfDay: 16.2, sunElevation: 14, weather: 'snow', ...WEATHER_PRESETS.snow, colorTemperature: 7200, saturation: 0.44, fov: 38 }) },
   { id: 'spidey', label: 'Spider-Man Rooftop', caption: 'Your friendly neighborhood sunset', bookmark: 'spidey',
-    params: grade({ timeOfDay: 19.75, sunElevation: 5, weather: 'clear', ...WEATHER_PRESETS.clear, cloudCoverage: 0.48, atmosphere: 0.68, bloom: 0.5, dof: 0.3, focusDistance: 5.6, fov: 46 }) },
+    params: grade({ timeOfDay: 19.75, sunElevation: 5, weather: 'clear', ...WEATHER_PRESETS.clear, cloudCoverage: 0.48, atmosphere: 0.68, bloom: 0.5, dof: 0.22, focusDistance: 4.6, fov: 44 }) },
   { id: 'sanctum', label: 'Sanctum Coffee Shop', caption: 'A sorcerer on his coffee break', bookmark: 'sanctum',
     params: grade({ timeOfDay: 20.55, sunElevation: -3.5, weather: 'clear', ...WEATHER_PRESETS.clear, wetness: 0.45, cloudCoverage: 0.35, bloom: 0.6, exposure: 1.1, dof: 0.28, focusDistance: 5.4, fov: 46, magicIntensity: 0.8 }) },
-  { id: 'fog', label: 'Foggy Morning', caption: 'Layered silhouettes in the mist', bookmark: 'skyline',
-    params: grade({ timeOfDay: 7.4, sunElevation: 17, weather: 'fog', ...WEATHER_PRESETS.fog, saturation: 0.42, fov: 34 }) },
+  { id: 'fog', label: 'Foggy Morning', caption: 'Layered silhouettes in the mist', bookmark: 'hudson',
+    params: grade({ timeOfDay: 7.4, sunElevation: 17, weather: 'fog', ...WEATHER_PRESETS.fog, saturation: 0.42, fov: 30 }) },
   { id: 'overcast', label: 'Overcast Day', caption: 'Soft light, architectural clarity', bookmark: 'overview',
     params: grade({ timeOfDay: 13.5, sunElevation: 62, weather: 'overcast', ...WEATHER_PRESETS.overcast, saturation: 0.46, bloom: 0.25, fov: 36 }) },
 ];

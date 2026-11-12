@@ -438,60 +438,66 @@ export function buildGround(data: CityData): GroundBuild {
 
 // ---- trees ---------------------------------------------------------------------
 
-function treeGeometry(): THREE.BufferGeometry {
-  // lumpy canopy + trunk, merged; vertex colours darken the underside for cheap AO
-  const canopy = new THREE.IcosahedronGeometry(1, 1);
-  const p = canopy.attributes.position as THREE.BufferAttribute;
-  const col: number[] = [];
-  const pos: number[] = [], nor: number[] = [];
-  const v = new THREE.Vector3();
-  for (let i = 0; i < p.count; i++) {
-    v.fromBufferAttribute(p, i);
-    const k = 0.78 + 0.44 * hash2(Math.round(v.x * 50) + 7, Math.round(v.y * 50 + v.z * 91));
-    v.multiplyScalar(k); v.y = v.y * 0.85 + 1.75;
-    pos.push(v.x, v.y, v.z);
-    const sh = 0.45 + 0.55 * Math.min(1, Math.max(0, (v.y - 0.9) / 1.6));
-    col.push(sh, sh, sh);
-  }
-  const g = new THREE.BufferGeometry();
-  // trunk (4 sides)
+function treeGeometry(hi: boolean): THREE.BufferGeometry {
+  // a clumped canopy (one main mass + two satellite lobes) on a short trunk; vertex colours shade the underside
+  const pos: number[] = [], col: number[] = [], nrm: number[] = [], idx: number[] = [];
+  const v = new THREE.Vector3(), n = new THREE.Vector3();
+  const lobe = (detail: number, r: number, cx: number, cy: number, cz: number, seed: number) => {
+    const g = new THREE.IcosahedronGeometry(1, detail);
+    const p = g.attributes.position as THREE.BufferAttribute;
+    const base = pos.length / 3;
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i);
+      n.copy(v).normalize();
+      const k = (hi ? 0.86 : 0.78) + (hi ? 0.26 : 0.42) * hash2(Math.round(v.x * 50) + seed, Math.round(v.y * 50 + v.z * 91));
+      v.multiplyScalar(k * r); v.y *= 0.82;
+      v.x += cx; v.y += cy; v.z += cz;
+      pos.push(v.x, v.y, v.z);
+      // blend lobe normal with a whole-crown normal so the clump shades as one soft volume
+      n.lerp(new THREE.Vector3(v.x, v.y - 1.7, v.z).normalize(), 0.55).normalize();
+      nrm.push(n.x, n.y, n.z);
+      const sh = 0.5 + 0.6 * Math.min(1, Math.max(0, (v.y - 0.95) / 1.7));
+      col.push(sh, sh, sh);
+    }
+    for (let i = 0; i < p.count; i += 3) idx.push(base + i, base + i + 1, base + i + 2);
+    g.dispose();
+  };
+  lobe(hi ? 2 : 1, 1.0, 0, 1.8, 0, 7);
+  lobe(hi ? 1 : 0, 0.62, 0.72, 1.55, 0.25, 19);
+  lobe(hi ? 1 : 0, 0.58, -0.55, 2.2, -0.5, 31);
+  if (hi) { lobe(1, 0.5, -0.2, 1.45, 0.7, 43); lobe(1, 0.46, 0.35, 2.45, 0.1, 57); }
   const tr = 0.09;
   const trunk = [[-tr, -tr], [tr, -tr], [tr, tr], [-tr, tr]];
-  const idx: number[] = [];
-  for (let i = 0; i < p.count; i += 3) idx.push(i, i + 1, i + 2);
-  const base = pos.length / 3;
   for (let i = 0; i < 4; i++) {
     const a = trunk[i], b = trunk[(i + 1) % 4];
     const o = pos.length / 3;
     pos.push(a[0], 0, a[1], b[0], 0, b[1], b[0], 1.3, b[1], a[0], 1.3, a[1]);
-    for (let k = 0; k < 4; k++) col.push(0.2, 0.15, 0.1);
+    const nx = a[0] + b[0], nz = a[1] + b[1], l = Math.hypot(nx, nz) || 1;
+    for (let k = 0; k < 4; k++) { col.push(0.22, 0.17, 0.12); nrm.push(nx / l, 0, nz / l); }
     idx.push(o, o + 2, o + 1, o, o + 3, o + 2);
   }
-  void base;
+  const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.setIndex(idx);
-  g.computeVertexNormals();
-  // smooth, spherical canopy normals (soft shading instead of facets)
-  const na = g.attributes.normal as THREE.BufferAttribute;
-  for (let i = 0; i < p.count; i++) { v.set(pos[i * 3], pos[i * 3 + 1] - 1.6, pos[i * 3 + 2]).normalize(); na.setXYZ(i, v.x, v.y, v.z); }
-  void nor;
   return g;
 }
 
 export function buildTrees(data: CityData, grid: CityGrid, isLand: (x: number, z: number) => boolean): THREE.Group {
   const group = new THREE.Group();
   group.name = 'trees';
-  const geo = treeGeometry();
+  const geo = treeGeometry(false), geoHi = treeGeometry(true);
+  const lod: { cx: number; cz: number; lo: THREE.InstancedMesh; hi: THREE.InstancedMesh }[] = [];
   const mat = extendMaterial(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, vertexColors: true, flatShading: false }), { key: 'tree', weather: true });
-  const TILE = 1200;
+  const TILE = 500;
   const tiles = new Map<string, { m: THREE.Matrix4; c: THREE.Color }[]>();
   const r = mulberry32(4242);
   const add = (x: number, z: number, s: number, hue: number) => {
     const k = `${Math.floor(x / TILE)},${Math.floor(z / TILE)}`;
     if (!tiles.has(k)) tiles.set(k, []);
     const m = new THREE.Matrix4().compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), r() * 6.28), new THREE.Vector3(s * (0.85 + 0.3 * r()), s, s * (0.85 + 0.3 * r())));
-    const c = new THREE.Color().setHSL(0.2 + hue * 0.09, 0.28 + 0.18 * r(), 0.075 + 0.06 * r());
+    const c = new THREE.Color().setHSL(0.19 + hue * 0.1, 0.3 + 0.2 * r(), 0.13 + 0.08 * r());
     tiles.get(k)!.push({ m, c });
   };
   // park trees
@@ -527,12 +533,26 @@ export function buildTrees(data: CityData, grid: CityGrid, isLand: (x: number, z
       }
     }
   }
-  for (const list of tiles.values()) {
-    const im = new THREE.InstancedMesh(geo, mat, list.length);
-    list.forEach((t, i) => { im.setMatrixAt(i, t.m); im.setColorAt(i, t.c); });
-    im.castShadow = true; im.receiveShadow = true;
-    im.computeBoundingSphere();
-    group.add(im);
+  for (const [key, list] of tiles) {
+    const [ix, iz] = key.split(',').map(Number);
+    const mk = (g: THREE.BufferGeometry) => {
+      const im = new THREE.InstancedMesh(g, mat, list.length);
+      list.forEach((t, i) => { im.setMatrixAt(i, t.m); im.setColorAt(i, t.c); });
+      im.castShadow = true; im.receiveShadow = true;
+      im.computeBoundingSphere();
+      group.add(im);
+      return im;
+    };
+    const lo = mk(geo), hi = mk(geoHi);
+    hi.visible = false;
+    lod.push({ cx: (ix + 0.5) * TILE, cz: (iz + 0.5) * TILE, lo, hi });
   }
+  // nearby tiles swap to the fuller canopy model
+  group.userData.update = (cam: THREE.Vector3, range: number) => {
+    for (const t of lod) {
+      const near = Math.hypot(t.cx - cam.x, t.cz - cam.z, cam.y) < range + TILE * 0.7;
+      if (t.hi.visible !== near) { t.hi.visible = near; t.lo.visible = !near; }
+    }
+  };
   return group;
 }
