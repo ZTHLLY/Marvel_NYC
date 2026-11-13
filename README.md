@@ -4,6 +4,8 @@ An unofficial, fan-made, interactive 3D portrait of a Marvel-flavoured New York.
 building footprints, restyle the light and weather, walk down to street level past the Sanctum Sanctorum, and export
 wallpapers up to 8K. **The city itself is the star: there are no character figures** (they were removed in Phase 2).
 
+**Live demo: <https://nyc.si1v3r.xyz>** (desktop browser with WebGL2 recommended)
+
 > **Background.** This is a weekend experiment, not a serious engineering project. I built it to see what Claude's
 > new model, Fable 5.2, can do, both technically and in terms of visual taste. All of the code was written by the model,
 > and I mostly just described what I wanted and looked at the results. Don't expect carefully designed architecture,
