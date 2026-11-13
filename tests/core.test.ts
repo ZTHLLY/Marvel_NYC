@@ -59,8 +59,8 @@ describe('parameters & presets', () => {
       expect(BOOKMARKS.some((b) => b.id === p.bookmark), p.id).toBe(true);
       for (const k of ['seed', 'heightScale', 'density', 'quality', 'renderDistance']) expect(k in p.params, `${p.id}.${k}`).toBe(false);
     }
-    for (const id of ['golden', 'avengers', 'blue', 'midnight', 'rain', 'snow', 'spidey', 'sanctum']) expect(SCENE_PRESETS.some((p) => p.id === id), id).toBe(true);
-    for (const id of ['skyline', 'avengers', 'spidey', 'sanctum', 'midtown-night', 'riverfront', 'times-square', 'snow']) expect(BOOKMARKS.some((b) => b.id === id), id).toBe(true);
+    for (const id of ['golden', 'avengers', 'blue', 'midnight', 'rain', 'snow', 'rooftop', 'sanctum']) expect(SCENE_PRESETS.some((p) => p.id === id), id).toBe(true);
+    for (const id of ['skyline', 'avengers', 'rooftop', 'sanctum', 'midtown-night', 'riverfront', 'times-square', 'snow']) expect(BOOKMARKS.some((b) => b.id === id), id).toBe(true);
   });
   it('sanitises imported settings', () => {
     const p = sanitizeParams({ exposure: 1.7, seed: 'evil', fov: NaN, bogus: 1, weather: 'rain' });
@@ -70,9 +70,11 @@ describe('parameters & presets', () => {
     expect((p as unknown as Record<string, unknown>).bogus).toBeUndefined();
     expect(sanitizeParams(null)).toEqual(DEFAULT_PARAMS);
     // hostile / corrupt values are clamped or rejected before they can reach the renderer
-    const h = sanitizeParams({ renderDistance: 1e9, lodBias: -5, resolution: 'bogus', quality: 'ultra', heroVariant: 7, aspect: '21:9' });
+    const h = sanitizeParams({ renderDistance: 1e9, lodBias: -5, resolution: 'bogus', quality: 'ultra', heroVariant: 7, superheroVisibility: 1, aspect: '21:9' });
     expect(h.renderDistance).toBe(24); expect(h.lodBias).toBe(0.4); expect(h.resolution).toBe(DEFAULT_PARAMS.resolution);
-    expect(h.quality).toBe('ultra'); expect(h.heroVariant).toBe(DEFAULT_PARAMS.heroVariant); expect(h.aspect).toBe('21:9');
+    expect(h.quality).toBe('ultra'); expect(h.aspect).toBe('21:9');
+    // Phase 1 character settings in old saves are dropped silently
+    expect('heroVariant' in h).toBe(false); expect('superheroVisibility' in h).toBe(false);
     expect(sanitizeParams([1, 2, 3])).toEqual(DEFAULT_PARAMS);
     expect(cleanPresetName('__proto__')).toBeNull(); expect(cleanPresetName('  Dusk  ')).toBe('Dusk'); expect(cleanPresetName('')).toBeNull();
   });

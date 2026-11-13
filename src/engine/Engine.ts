@@ -51,7 +51,7 @@ export class Engine {
   private viewW = 1; private viewH = 1;
   capturing = false;
   ready = false;
-  /** points the camera may approach closely at altitude (hero figures) — keeps the near plane from clipping them */
+  /** points the camera may approach closely at altitude (rooftop parapet, tower deck) — keeps the near plane from clipping them */
   closeTargets: THREE.Vector3[] = [];
   /** adaptive resolution: drops while navigation is slow, recovers when there is headroom or the view rests */
   private dynScale = 1;

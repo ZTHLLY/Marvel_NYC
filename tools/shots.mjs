@@ -49,16 +49,7 @@ for (const spec of args) {
     const st = store.getState();
     st.ui({ uiHidden: !ui, showHelp: false, photoMode: parts[0].includes('photo'), activeGroup: (parts[0].match(/tab-(\w+)/) || [])[1] || st.activeGroup });
     let i = 0;
-    if (parts[1] && parts[1].startsWith('hero=')) {
-      // close-up on a hero figure: hero=<name>,<dist>,<height>,<angleDeg>
-      const [nm, d, hgt, ang] = parts[1].slice(5).split(',');
-      const g = engine.scene.getObjectByName(nm);
-      if (rest[0]) st.applyScenePreset(rest[0]);
-      if (rest[1]) st.patch(JSON.parse(rest.slice(1).join(':')));
-      const a = g.rotation.y + (+ang * Math.PI) / 180;
-      const p = g.position;
-      engine.goto({ pos: [p.x + Math.sin(a) * +d, p.y + +hgt, p.z + Math.cos(a) * +d], target: [p.x, p.y + (+(parts[2] || 1.2)), p.z], fov: +(parts[3] || 30) }, true);
-    } else if (parts.length >= 3) {
+    if (parts.length >= 3) {
       const pos = parts[1].split(',').map(Number), target = parts[2].split(',').map(Number);
       const fov = parts[3] ? +parts[3] : st.params.fov;
       if (rest[0]) st.applyScenePreset(rest[0]);

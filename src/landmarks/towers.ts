@@ -32,7 +32,7 @@ function avengersLogoTexture(): THREE.CanvasTexture {
 }
 
 /** Avengers Tower: a swept glass tower rising from the old Pan Am podium, with crown fin and landing deck. */
-export function buildAvengersTower(palette: StylePalette): { group: THREE.Group; ironman: Anchor } {
+export function buildAvengersTower(palette: StylePalette): { group: THREE.Group; deck: Anchor } {
   const site = SITES.avengers;
   const group = new THREE.Group();
   group.name = 'avengers-tower';
@@ -175,7 +175,7 @@ export function buildAvengersTower(palette: StylePalette): { group: THREE.Group;
   group.add(jet);
 
   const [ix, iz] = P(4.6, padZ + 5.2);
-  return { group, ironman: { pos: new THREE.Vector3(ix, padY + 0.25, iz), yaw: YAW_DOWNTOWN - 0.35 } };
+  return { group, deck: { pos: new THREE.Vector3(ix, padY + 0.25, iz), yaw: YAW_DOWNTOWN - 0.35 } };
 }
 
 /** Baxter Building: a luminous rounded tower crowned by the Fantastic Four's ringed launch drum. */
@@ -358,18 +358,18 @@ export async function buildBugle(palette: StylePalette): Promise<THREE.Group> {
   return group;
 }
 
-/** The pre-war tower whose parapet Spider-Man perches on. Returns the perch anchor. */
-export function buildPerchTower(palette: StylePalette): { group: THREE.Group; perch: Anchor } {
-  const site = SITES.spidey;
+/** The pre-war tower that carries the rooftop-panorama vantage point. Returns the parapet-corner anchor. */
+export function buildRooftopTower(palette: StylePalette): { group: THREE.Group; perch: Anchor } {
+  const site = SITES.rooftop;
   const group = new THREE.Group();
-  group.name = 'perch-tower';
+  group.name = 'rooftop-tower';
   const row = palette.addCustom({ win: [0.4, 0.56], bay: 2.7, floor: 3.4, wall: 0x8a6a58, wallType: 0, glass: 0x333c44, glassRough: 0.16, frame: 0x26282a, frameW: 0.09, ground: 6, lit: 0.42, warm: 0.8, coh: 0.1, pier: 0.5, spandrel: 0.35, sill: 0.8, crown: 0.5, roof: 0x3c3a38, storefront: 0.9, accent: 0x2e6a4a, feature: 0 });
   const mb = new MeshBuilder(8192);
   decoTiers(mb, site, row, 0.9, [[0, 142.0, 15.5, 13.5], [142.0, 169.2, 12.6, 10.6], [169.2, 189.6, 9.2, 8.2]], 2.7);
   const yT = 189.6;
   const stone = palette.addCustom({ win: [0.3, 0.5], bay: 3, floor: 4, wall: 0xb5aa98, wallType: 1, glass: 0x333c44, glassRough: 0.16, frame: 0x26282a, frameW: 0.09, ground: 4, lit: 0, warm: 1, coh: 0, pier: 0, spandrel: 0, sill: 0, crown: 0, roof: 0x3c3a38, storefront: 0, accent: 0x2e6a4a, feature: 0 });
   const L = (lx: number, lz: number) => toWorld(site, lx, lz);
-  // stone coping & corner piers on the top parapet (the perch)
+  // stone coping & corner piers on the top parapet (the vantage point)
   mb.style(stone, Surf.Blank, 0.9, yT + 2);
   const outer = rectRing(site.x, site.z, 9.45, 8.45, GRID_ANGLE), inner = rectRing(site.x, site.z, 8.75, 7.75, GRID_ANGLE);
   mb.cap(outer, yT + 0.95, inner);
@@ -396,7 +396,7 @@ export function buildPerchTower(palette: StylePalette): { group: THREE.Group; pe
   const [vx, vz] = L(2.5, -3.8); mb.box(vx, yT + 0.2, vz, 2.6, 1.5, 1.8, GRID_ANGLE);
   const [dx, dz] = L(-5, -4.4); mb.cyl(dx, yT, dz, 0.4, 0.4, 1.6, 10, true);
   group.add(facadeMesh(mb.build()));
-  // perch: the uptown / east corner pier, looking toward the Empire State Building
+  // vantage: the uptown / east corner pier, looking toward the Empire State Building
   const [px, pz] = L(8.95, -7.95);
   return { group, perch: { pos: new THREE.Vector3(px, yT + 1.49, pz), yaw: yawFacing(UPTOWN[0] * 0.98 + CROSSTOWN[0] * 0.2, UPTOWN[1] * 0.98 + CROSSTOWN[1] * 0.2) } };
 }

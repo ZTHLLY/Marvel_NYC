@@ -5,13 +5,10 @@ import { MeshBuilder, rectRing } from '../city/meshBuilder';
 import { extendMaterial, pbr, U } from '../engine/materials';
 import { SITES } from './sites';
 import { beacon, facadeMesh, panel, signMaterial, signTexture, yawFacing } from './kit';
-import type { Anchor } from './towers';
 
 export interface SanctumBuild {
   group: THREE.Group;
   clear: { x: number; z: number; r: number }[];
-  strange: Anchor;
-  strangeAlt: Anchor;
   lights: THREE.PointLight[];
   mandala: THREE.Mesh;
   /** local → world helper for composing camera bookmarks */
@@ -283,12 +280,9 @@ export function buildSanctum(palette: StylePalette, data: CityData): SanctumBuil
   const body = facadeMesh(mb.build());
   group.add(body, extras);
   group.updateMatrixWorld(true);
-  const yawWorld = (lx: number, lz: number) => { const a = toWorld(0, 0, 0), b = toWorld(lx, 0, lz); return yawFacing(b.x - a.x, b.z - a.z); };
   const c1 = toWorld(0, 0, -D / 2), c2 = toWorld((SX0 + SX1) / 2, 0, STREET + SD / 2);
   return {
     group, mandala, lights: lamps, toWorld,
     clear: [{ x: c1.x, z: c1.z, r: 12.5 }, { x: c2.x, z: c2.z, r: 9.5 }],
-    strange: { pos: toWorld(16.3, 0, STREET - SIDEWALK + 0.7), yaw: yawWorld(0.9, 0.3) },
-    strangeAlt: { pos: toWorld(1.9, 0.82, 1.3), yaw: yawWorld(0.25, 1) },
   };
 }

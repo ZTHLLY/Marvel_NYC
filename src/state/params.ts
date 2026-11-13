@@ -37,10 +37,8 @@ export interface Params {
   windowLighting: number;
   // --- marvel
   landmarkVisibility: number;
-  superheroVisibility: number;
   marvelDetail: number;
   magicIntensity: number;
-  heroVariant: number;
   // --- photography
   fov: number;
   dof: number;
@@ -85,10 +83,8 @@ export const DEFAULT_PARAMS: Params = {
   ambient: 0.5,
   windowLighting: 0.5,
   landmarkVisibility: 1,
-  superheroVisibility: 1,
   marvelDetail: 0.7,
   magicIntensity: 0.6,
-  heroVariant: 0,
   fov: 38,
   dof: 0,
   focusDistance: 60,
@@ -132,7 +128,7 @@ export const GROUPS: { id: GroupId; label: string; blurb: string }[] = [
   { id: 'city', label: 'City', blurb: 'Procedural massing of Manhattan. Landmarks & street grid stay fixed.' },
   { id: 'environment', label: 'Environment', blurb: 'Time, weather and atmosphere of the frozen moment.' },
   { id: 'lighting', label: 'Light & Colour', blurb: 'Sun, exposure and the cinematic grade.' },
-  { id: 'marvel', label: 'Marvel', blurb: 'Landmarks, heroes and the details of a superhero New York.' },
+  { id: 'marvel', label: 'Marvel', blurb: 'Fictional landmarks, signage and easter eggs of a Marvel-flavoured New York.' },
   { id: 'photo', label: 'Photography', blurb: 'Lens, framing and wallpaper export.' },
   { id: 'performance', label: 'Performance', blurb: 'Trade fidelity for frame-rate.' },
 ];
@@ -167,11 +163,8 @@ export const CONTROL_SCHEMA: ControlDef[] = [
   { key: 'windowLighting', label: 'Window Lighting', group: 'lighting', kind: 'slider', min: 0, max: 1, step: 0.01, digits: 2 },
   // marvel
   { key: 'landmarkVisibility', label: 'Marvel Landmark Visibility', group: 'marvel', kind: 'slider', min: 0, max: 1, step: 0.01, digits: 2, hint: '0 hides the fictional landmarks; higher values strengthen their signature lighting.' },
-  { key: 'superheroVisibility', label: 'Superhero Visibility', group: 'marvel', kind: 'slider', min: 0, max: 1, step: 1, digits: 0 },
   { key: 'marvelDetail', label: 'Marvel Environmental Detail', group: 'marvel', kind: 'slider', min: 0, max: 1, step: 0.01, digits: 2, hint: 'How many billboards, signs and easter eggs populate the city.' },
   { key: 'magicIntensity', label: 'Magical Effect Intensity', group: 'marvel', kind: 'slider', min: 0, max: 1.5, step: 0.01, digits: 2 },
-  { key: 'heroVariant', label: 'Hero Placement', group: 'marvel', kind: 'select', options: [
-    { value: 0, label: 'Classic encounters' }, { value: 1, label: 'Alternate positions' } ] },
   // photo
   { key: 'fov', label: 'Field of View', group: 'photo', kind: 'slider', min: 12, max: 100, step: 0.5, unit: '°', digits: 1 },
   { key: 'dof', label: 'Depth of Field', group: 'photo', kind: 'slider', min: 0, max: 1, step: 0.01, digits: 2, hint: '0 = everything sharp.' },
