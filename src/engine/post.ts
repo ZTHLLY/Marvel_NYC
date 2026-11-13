@@ -69,6 +69,8 @@ export class Post {
   private grade = new GradeEffect();
   private bloomPass: EffectPass; private dofPass: EffectPass; private gradePass: EffectPass; private smaaPass: EffectPass;
   private msaa = -1;
+  private baseExposure = 1;
+  private camExposure = 1;
 
   constructor(private renderer: THREE.WebGLRenderer, scene: THREE.Scene, private camera: THREE.PerspectiveCamera) {
     this.composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType, multisampling: 0 });
@@ -104,7 +106,8 @@ export class Post {
     // night scenes get a photographic exposure lift so lit windows and neon read properly
     const autoExp = lerp(1, 2.1, a.night) * lerp(1, 1.25, a.overcast * (1 - a.night));
     const u = this.grade.uniforms;
-    u.get('uExposure')!.value = p.exposure * autoExp * 0.82;
+    this.baseExposure = p.exposure * autoExp * 0.82;
+    u.get('uExposure')!.value = this.baseExposure * this.camExposure;
     u.get('uContrast')!.value = p.contrast;
     u.get('uSaturation')!.value = p.saturation;
     u.get('uVignette')!.value = p.vignette;
@@ -126,6 +129,13 @@ export class Post {
     this.gradePass.renderToScreen = !this.smaaPass.enabled;
     const msaa = q >= 3 ? 4 : q >= 2 ? 2 : 0;
     if (msaa !== this.msaa) { this.msaa = msaa; this.composer.multisampling = msaa; }
+  }
+
+  /** Eye adaptation: the engine raises exposure a little when the camera drops into shaded street canyons. */
+  setCameraExposure(k: number) {
+    if (Math.abs(k - this.camExposure) < 0.002) return;
+    this.camExposure = k;
+    this.grade.uniforms.get('uExposure')!.value = this.baseExposure * k;
   }
 
   render(dt: number) { this.composer.render(dt); }

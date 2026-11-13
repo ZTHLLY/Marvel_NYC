@@ -1,5 +1,5 @@
 import type { Params } from '../state/params';
-import { BuildingRec, District, districtOf, aveOf, pointInPoly, UPTOWN } from './geo';
+import { BuildingRec, District, districtOf, aveOf, pointInPoly, UPTOWN, CURB_H } from './geo';
 import { Family, StylePalette, Surf, VARIANTS } from './facade';
 import { MeshBuilder, insetPoly, obbOf, rectRing, scaleRing, ringArea, OBB } from './meshBuilder';
 import { hash2, hash3, mulberry32, rr, Rng, weighted, clamp } from '../util/rng';
@@ -419,6 +419,51 @@ export function emitDetail(mb: MeshBuilder, plan: Plan, ctx: GenCtx) {
         mb.beam(s[0], yR + 0.6, s[1], s[0] + Math.cos(a) * L, yR + 0.6, s[1] + Math.sin(a) * L, 0.55, 0.45);
       }
     }
+    // cooling tower on steel dunnage: every large building has one
+    if (H > 40 && roofArea > 420 && r() < 0.75) {
+      const s = spot(4.6);
+      if (s) {
+        const w = rr(r, 4, 7), d = rr(r, 2.8, 4.2), h = rr(r, 2.8, 4.2), ca = Math.cos(tob.ang), sa = Math.sin(tob.ang);
+        mb.style(row, Surf.Dark, seed, yR);
+        for (const [ox, oz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { const lx = ox * w * 0.42, lz = oz * d * 0.42; mb.beam(s[0] + lx * ca - lz * sa, yR, s[1] + lx * sa + lz * ca, s[0] + lx * ca - lz * sa, yR + 0.9, s[1] + lx * sa + lz * ca, 0.2); }
+        mb.style(row, Surf.Metal, seed, yR + h);
+        mb.box(s[0], yR + 0.9, s[1], w, h, d, tob.ang);
+        mb.style(row, Surf.Dark, seed, yR);
+        const nf = w > 5.4 ? 2 : 1;
+        for (let k = 0; k < nf; k++) { const lx = nf === 1 ? 0 : (k - 0.5) * w * 0.5; mb.cyl(s[0] + lx * ca, yR + 0.9 + h, s[1] + lx * sa, Math.min(d, w / nf) * 0.36, Math.min(d, w / nf) * 0.4, 0.75, 14, true); }
+        // condenser pipes running to the bulkhead line
+        const L = rr(r, 4, 10), a = tob.ang + (r() < 0.5 ? 0 : Math.PI / 2);
+        mb.style(row, Surf.Metal, seed, yR);
+        for (const o of [-0.25, 0.25]) mb.beam(s[0] + o * Math.sin(a), yR + 0.45, s[1] - o * Math.cos(a), s[0] + Math.cos(a) * L + o * Math.sin(a), yR + 0.45, s[1] + Math.sin(a) * L - o * Math.cos(a), 0.22);
+      }
+    }
+    // window-washing rig (building maintenance unit) and its track on glass towers
+    if ((family === F.GlassOffice || family === F.LuxuryCondo || family === F.OfficeComplex) && H > 80 && roofArea > 300) {
+      const track = insetPoly(top.pts, 1.5);
+      if (track) {
+        const n = track.length / 2;
+        mb.style(row, Surf.Dark, seed, yR);
+        for (let i = 0; i < n; i++) { const j = (i + 1) % n; mb.beam(track[i * 2], yR + 0.18, track[i * 2 + 1], track[j * 2], yR + 0.18, track[j * 2 + 1], 0.16, 0.14); }
+        const k = Math.floor(r() * n), k2 = (k + 1) % n, t = rr(r, 0.25, 0.75);
+        const bx = track[k * 2] + (track[k2 * 2] - track[k * 2]) * t, bz = track[k * 2 + 1] + (track[k2 * 2 + 1] - track[k * 2 + 1]) * t;
+        const ja = Math.atan2(tob.cz - bz, tob.cx - bx) + Math.PI + rr(r, -0.5, 0.5);
+        mb.style(row, Surf.Metal, seed, yR + 2);
+        mb.box(bx, yR + 0.25, bz, 2.4, 1.9, 1.7, ja);
+        mb.style(row, Surf.Dark, seed, yR);
+        mb.beam(bx, yR + 2.1, bz, bx + Math.cos(ja) * 8.5, yR + 5.2, bz + Math.sin(ja) * 8.5, 0.34, 0.42);
+        mb.beam(bx, yR + 2.1, bz, bx - Math.cos(ja) * 2.6, yR + 2.6, bz - Math.sin(ja) * 2.6, 0.5, 0.6);
+      }
+    }
+    // plumbing vent stacks and exhaust flues
+    const nV = Math.min(6, 1 + Math.floor(roofArea / 220));
+    for (let i = 0; i < nV; i++) {
+      const s = spot(0.8);
+      if (!s) continue;
+      const fat = r() < 0.3, h = fat ? rr(r, 1.4, 2.6) : rr(r, 0.7, 1.3), rad = fat ? rr(r, 0.22, 0.4) : 0.07;
+      mb.style(row, fat ? Surf.Metal : Surf.Dark, seed, yR);
+      mb.cyl(s[0], yR, s[1], rad, rad, h, fat ? 10 : 6, true);
+      if (fat) { mb.style(row, Surf.Dark, seed, yR); mb.cyl(s[0], yR + h + 0.12, s[1], rad * 1.5, rad * 0.5, 0.22, 10, true); }
+    }
     // skylights on lofts
     if ((family === F.Industrial || family === F.MixedUse) && r() < 0.5) {
       const s = spot(2.5);
@@ -445,6 +490,32 @@ export function emitDetail(mb: MeshBuilder, plan: Plan, ctx: GenCtx) {
   const tx = ex / L, tz = ez / L, nx = tz, nz = -tx;
   const at = (s: number, o: number): [number, number] => [ax + tx * s + nx * o, az + tz * s + nz * o];
   const floors = Math.round((tiers[0].y1 - groundH) / floorH);
+
+  // ---- sidewalk shed (scaffold bridge): the most New York piece of street furniture there is
+  let shed = false;
+  if (masonry && floors >= 4 && floors <= 16 && L > 11 && hash2(rec.id * 7 + 3, ctx.p.seed) < 0.075 * (0.5 + rich)) {
+    shed = true;
+    const y0 = CURB_H, deck = y0 + 2.75, out = 2.7;
+    const [d0x, d0z] = at(0.3, out / 2 + 0.05), [d1x, d1z] = at(L - 0.3, out / 2 + 0.05);
+    mb.style(row, Surf.Painted, seed, 0);
+    mb.beam(d0x, deck, d0z, d1x, deck, d1z, out, 0.22);
+    // parapet boards on the street side and both returns
+    const [p0x, p0z] = at(0.3, out + 0.05), [p1x, p1z] = at(L - 0.3, out + 0.05);
+    mb.beam(p0x, deck + 0.65, p0z, p1x, deck + 0.65, p1z, 0.06, 1.2);
+    const [q0x, q0z] = at(0.3, 0.1), [q1x, q1z] = at(L - 0.3, 0.1);
+    mb.beam(q0x, deck + 0.65, q0z, p0x, deck + 0.65, p0z, 0.06, 1.2);
+    mb.beam(q1x, deck + 0.65, q1z, p1x, deck + 0.65, p1z, 0.06, 1.2);
+    // pipe frames with knee braces
+    mb.style(row, Surf.Dark, seed, 0);
+    const nP = Math.max(2, Math.round((L - 0.6) / 2.6));
+    for (let k = 0; k <= nP; k++) {
+      const sK = 0.4 + ((L - 0.8) * k) / nP;
+      for (const o of [0.35, out - 0.1]) { const [px, pz] = at(sK, o); mb.beam(px, y0, pz, px, deck, pz, 0.07); }
+      const [ax0, az0] = at(sK, 0.35), [ax1, az1] = at(sK, out - 0.1);
+      mb.beam(ax0, deck - 0.16, az0, ax1, deck - 0.16, az1, 0.07);
+      if (k < nP && k % 2 === 0) { const [bx0, bz0] = at(sK, out - 0.1), [bx1, bz1] = at(sK + (L - 0.8) / nP, out - 0.1); mb.beam(bx0, y0 + 0.2, bz0, bx1, deck - 0.3, bz1, 0.04); mb.beam(bx0, deck - 0.3, bz0, bx1, y0 + 0.2, bz1, 0.04); }
+    }
+  }
 
   // ---- fire escapes on tenements & lofts
   if ((family === F.BrickApartment || family === F.MixedUse || family === F.Industrial) && floors >= 3 && floors <= 9 && L > 5 && (rec.year < 1955) && r() < 0.8) {
@@ -496,7 +567,7 @@ export function emitDetail(mb: MeshBuilder, plan: Plan, ctx: GenCtx) {
   }
 
   // ---- shop awnings
-  if ((family === F.MixedUse || family === F.BrickApartment || family === F.Hotel) && L > 6 && groundH > 3.6) {
+  if (!shed && (family === F.MixedUse || family === F.BrickApartment || family === F.Hotel) && L > 6 && groundH > 3.6) {
     const count = Math.min(4, Math.floor(L / 6));
     for (let k = 0; k < count; k++) {
       if (r() > 0.45 + 0.3 * rich) continue;

@@ -45,7 +45,6 @@ export async function capturePhoto(engine: Engine, preview: boolean): Promise<Bl
   await nextFrame(); await nextFrame();
 
   const prevFov = camera.fov, prevAspect = camera.aspect;
-  const prevShadow = engine.sun.shadow.mapSize.x;
   let blob: Blob | null = null;
   engine.capturing = true;
   try {
@@ -57,10 +56,7 @@ export async function capturePhoto(engine: Engine, preview: boolean): Promise<Bl
         if (i % 4 === 3) await nextFrame();
       }
     }
-    if (!preview && engine.sun.castShadow && prevShadow < 8192 && maxDim >= 8192) {
-      engine.sun.shadow.mapSize.set(8192, 8192);
-      engine.sun.shadow.map?.dispose(); (engine.sun.shadow as any).map = null;
-    }
+    if (!preview && p.shadowQuality > 0) engine.shadows.setQuality(p.shadowQuality, true, maxDim >= 8192);
     engine.invalidateShadow();
     post.apply(p, engine.atmo, true);
     // --- frame exactly what the on-screen crop shows
@@ -84,10 +80,8 @@ export async function capturePhoto(engine: Engine, preview: boolean): Promise<Bl
     console.error(err);
     setMsg(`Capture failed: ${(err as Error).message}. Try a lower resolution.`, false);
   } finally {
-    if (engine.sun.shadow.mapSize.x !== prevShadow) {
-      engine.sun.shadow.mapSize.set(prevShadow, prevShadow);
-      engine.sun.shadow.map?.dispose(); (engine.sun.shadow as any).map = null;
-    }
+    engine.shadows.setQuality(p.shadowQuality);
+    engine.invalidateShadow();
     if (engine.chunks) engine.chunks.detailBoost = 1;
     camera.fov = prevFov; camera.aspect = prevAspect; camera.updateProjectionMatrix();
     post.apply(useStore.getState().params, engine.atmo, false);

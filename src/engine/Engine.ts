@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { useStore, bus } from '../state/store';
 import { Params, REGEN_KEYS } from '../state/params';
-import { BOOKMARKS } from '../state/presets';
+import { BOOKMARKS, resolveId } from '../state/presets';
 import { SITES } from '../landmarks/sites';
 import { loadCityData, CityData } from '../city/geo';
 import { StylePalette, facadeUniforms } from '../city/facade';
@@ -12,12 +12,13 @@ import { U } from './materials';
 import { CameraRig } from './cameraRig';
 import { Post } from './post';
 import { PlanarReflection } from './reflection';
+import { SunShadows } from './shadows';
+import { extendMaterial } from './materials';
 import { clamp } from '../util/rng';
 import { WorldExtras, buildWorldExtras } from '../world';
 import { capturePhoto } from '../photo/capture';
 
 const PIXEL_RATIO: Record<string, number> = { low: 1, medium: 1.25, high: 1.5, ultra: 2 };
-const SHADOW_SIZE = [0, 2048, 4096, 4096];
 
 export class Engine {
   renderer: THREE.WebGLRenderer;
@@ -27,7 +28,7 @@ export class Engine {
   post: Post;
   sky: Sky;
   refl: PlanarReflection;
-  sun = new THREE.DirectionalLight(0xffffff, 1);
+  shadows: SunShadows;
   hemi = new THREE.HemisphereLight(0xffffff, 0x222222, 1);
   atmo!: AtmoState;
   palette = new StylePalette();
@@ -60,6 +61,7 @@ export class Engine {
   private probeDirty = true;
   private probePos = new THREE.Vector3(1e9, 0, 0);
   private probeTmp = new THREE.Vector3();
+  private camExposureK = 1;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.params = useStore.getState().params;
@@ -67,13 +69,12 @@ export class Engine {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;   // filtered with a per-cascade radius (see shadows.ts)
     this.renderer.shadowMap.autoUpdate = false;
     this.renderer.info.autoReset = false;
     this.camera.layers.enable(1);
-    this.scene.add(this.sun, this.sun.target, this.hemi);
-    this.sun.castShadow = true;
-    this.sun.shadow.camera.near = 10; this.sun.shadow.camera.far = 14000;
+    this.scene.add(this.hemi);
+    this.shadows = new SunShadows(this.renderer, this.scene);
     this.sky = new Sky(this.renderer, this.scene);
     this.rig = new CameraRig(this.camera, canvas);
     this.rig.pick = this.pick;
@@ -96,7 +97,7 @@ export class Engine {
 
     this.unsub.push(useStore.subscribe((s) => s.params, (p, prev) => this.applyParams(p, prev)));
     this.unsub.push(useStore.subscribe((s) => s.cameraMode, (m) => this.rig.setMode(m)));
-    this.unsub.push(bus.on('bookmark', (id) => { const b = BOOKMARKS.find((x) => x.id === id); if (b) this.goto(b); }));
+    this.unsub.push(bus.on('bookmark', (raw) => { const id = resolveId(raw); const b = BOOKMARKS.find((x) => x.id === id); if (b) this.goto(b); }));
     this.unsub.push(bus.on('focus', (id) => this.focusSite(id)));
     this.unsub.push(bus.on('setCamera', (p) => { this.rig.setPose(p); }));
     this.unsub.push(bus.on('resetCamera', () => this.goto(BOOKMARKS[0])));
@@ -113,6 +114,17 @@ export class Engine {
     const s = useStore.getState();
     s.ui({ capture: { ...s.capture, busy: false, message: 'Graphics context lost — reload the page (try a lower export resolution).' } });
   };
+
+  /** Lit materials must go through `extendMaterial` (fog + cascade-aware sun); adopt any that were created raw. */
+  private adoptStrayMaterials() {
+    this.scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      for (const mat of Array.isArray(m) ? m : m ? [m] : []) {
+        const lit = (mat as any).isMeshStandardMaterial || (mat as any).isMeshLambertMaterial || (mat as any).isMeshPhongMaterial;
+        if (lit && !(mat as any).defines?.USE_CSM) { extendMaterial(mat, { key: 'adopted' }); mat.needsUpdate = true; if (import.meta.env.DEV) console.warn('adopted raw material on', o.name || o.type); }
+      }
+    });
+  }
 
   private setLoading(progress: number, label: string, done = false) { useStore.getState().ui({ loading: { progress, label, done } }); }
 
@@ -154,6 +166,7 @@ export class Engine {
         await nextFrame();
         if (gone()) return;
       }
+      this.adoptStrayMaterials();
       this.ready = true;
       this.setLoading(1, 'Welcome to New York', true);
     } catch (err) {
@@ -198,8 +211,7 @@ export class Engine {
     U.uSunColor.value.copy(a.lightColor).multiplyScalar(a.lightIntensity * (a.night > 0.9 ? 0.5 : 1) * a.sunDisc);
     facadeUniforms.uStreetGlow.value = 1;
     // lights
-    this.sun.color.copy(a.lightColor);
-    this.sun.intensity = a.lightIntensity * Math.PI * 0.8;
+    this.shadows.setLight(a.lightColor, a.lightIntensity * Math.PI * 0.8);
     this.hemi.color.copy(a.hemiSky);
     this.hemi.groundColor.copy(a.hemiGround);
     this.hemi.intensity = a.hemiIntensity * 0.9;
@@ -210,13 +222,7 @@ export class Engine {
     if (sdir || !prev || prev.shadowQuality !== p.shadowQuality) this.shadowDirty = true;
     // quality
     if (!prev || prev.quality !== p.quality) this.resize();
-    const ss = SHADOW_SIZE[p.shadowQuality] || 0;
-    this.sun.castShadow = ss > 0;
-    if (ss > 0 && this.sun.shadow.mapSize.x !== ss) {
-      this.sun.shadow.mapSize.set(ss, ss);
-      this.sun.shadow.map?.dispose(); (this.sun.shadow as any).map = null;
-      this.shadowDirty = true;
-    }
+    if (!this.capturing && this.shadows.setQuality(p.shadowQuality)) this.shadowDirty = true;
     this.refl.enabled = p.reflections;
     U.uReflStrength.value = p.reflections ? 1 : 0;
     if (this.ground) this.ground.waterMaterial.uniforms.uReflOn.value = p.reflections ? 1 : 0;
@@ -260,8 +266,9 @@ export class Engine {
   };
 
   private updateShadow(now: number) {
-    if (!this.sun.castShadow) return;
     const cam = this.camera;
+    const L = this.atmo.lightDir;
+    if (!this.shadows.castsShadows) { this.shadows.update(cam, L, false, null); return; }
     const dir = cam.getWorldDirection(new THREE.Vector3());
     // focus point: where the view ray meets the ground, bounded
     let t = dir.y < -0.02 ? cam.position.y / -dir.y : 2500;
@@ -270,24 +277,15 @@ export class Engine {
     focus.y = 0;
     const extent = clamp(Math.max(t * 0.95, cam.position.y * 0.9), 130, 4800);
     const moved = focus.distanceTo(this.shadowCenter) > this.shadowExtent * 0.14 || Math.abs(extent - this.shadowExtent) > this.shadowExtent * 0.22;
-    if (!(this.shadowDirty || moved)) return;
-    if (!this.capturing && now - this.lastShadow < (this.rig.moving ? 120 : 0)) return;
-    this.lastShadow = now;
-    this.shadowDirty = false;
-    this.shadowCenter.copy(focus); this.shadowExtent = extent;
-    const L = this.atmo.lightDir;
-    this.sun.target.position.copy(focus);
-    this.sun.position.copy(focus).addScaledVector(L, 6000);
-    const sc = this.sun.shadow.camera;
-    sc.left = -extent; sc.right = extent; sc.top = extent; sc.bottom = -extent;
-    sc.near = 100; sc.far = 12500;
-    sc.updateProjectionMatrix();
-    const texel = (extent * 2) / this.sun.shadow.mapSize.x;
-    this.sun.shadow.bias = -0.00012;
-    this.sun.shadow.normalBias = texel * 1.6;
-    this.sun.shadow.radius = 1.6;
-    this.sun.target.updateMatrixWorld();
-    this.renderer.shadowMap.needsUpdate = true;
+    // the far cascade is the Phase 1 whole-view map (refreshed with hysteresis); near cascades follow the camera
+    const refit = (this.shadowDirty || moved) && (this.capturing || now - this.lastShadow >= (this.rig.moving ? 120 : 0));
+    const dirty = this.shadowDirty && refit;
+    if (refit) {
+      this.lastShadow = now;
+      this.shadowDirty = false;
+      this.shadowCenter.copy(focus); this.shadowExtent = extent;
+    }
+    this.shadows.update(cam, L, dirty, refit ? { center: focus, extent } : null);
   }
 
   /** Render one frame at the current renderer size (also used by the capture path). */
@@ -302,6 +300,13 @@ export class Engine {
     cam.updateProjectionMatrix();
     cam.updateMatrixWorld();
     this.sky.follow(cam);
+    // eye adaptation: daylight street canyons sit in open shade, so open up as the camera descends between the buildings
+    {
+      const low = 1 - clamp((cam.position.y - 12) / 110, 0, 1);
+      const target = 1 + 0.75 * low * (1 - this.atmo.night) * (1 - 0.5 * this.atmo.overcast);
+      this.camExposureK = this.capturing ? target : this.camExposureK + (target - this.camExposureK) * Math.min(1, dt * 2.5);
+      this.post.setCameraExposure(this.camExposureK);
+    }
     this.updateShadow(now);
     if (this.sky.update(now, this.params.textureQuality, this.capturing)) this.probeDirty = true;
     // once the view has settled, replace the sky-only environment with a probe of the real surroundings
@@ -381,7 +386,7 @@ export class Engine {
     this.refl.dispose();
     this.post.dispose();
     this.palette.texture.dispose();
-    this.sun.shadow.map?.dispose();
+    this.shadows.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
     if ((window as any).__forge?.engine === this) delete (window as any).__forge;

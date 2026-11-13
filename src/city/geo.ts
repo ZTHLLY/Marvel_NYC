@@ -7,6 +7,8 @@
 
 export const LAT0 = 40.7527, LON0 = -73.9772;
 export const M_PER_LAT = 111047.0, M_PER_LON = 84395.0;
+/** Sidewalks stand this far above the roadway (raised kerbs); sidewalk furniture sits at this height. */
+export const CURB_H = 0.15;
 
 export const ll = (lat: number, lon: number): [number, number] => [
   (lon - LON0) * M_PER_LON,

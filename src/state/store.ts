@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import {
   DEFAULT_PARAMS, Params, QUALITY_PRESETS, WEATHER_PRESETS, sunFromTime, GroupId, WeatherKind, QualityKind, CONTROL_SCHEMA,
 } from './params';
-import { SCENE_PRESETS } from './presets';
+import { SCENE_PRESETS, resolveId } from './presets';
 
 export type CameraMode = 'orbit' | 'fly';
 
@@ -123,7 +123,8 @@ export const useStore = create<AppState>()(
       set((s) => ({ params: { ...s.params, ...p }, activePreset: null }));
     },
     patch: (p) => set((s) => ({ params: { ...s.params, ...p } })),
-    applyScenePreset: (id) => {
+    applyScenePreset: (rawId) => {
+      const id = resolveId(rawId);
       const preset = SCENE_PRESETS.find((x) => x.id === id);
       if (!preset) return;
       const cur = get().params;

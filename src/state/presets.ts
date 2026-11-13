@@ -18,24 +18,28 @@ const S = SITES;
 const P = (lat: number, lon: number, y: number): [number, number, number] => { const [x, z] = ll(lat, lon); return [x, y, z]; };
 const off = (site: { x: number; z: number }, dx: number, y: number, dz: number): [number, number, number] => [site.x + dx, y, site.z + dz];
 
-/** Curated cinematic viewpoints. Positions were composed by eye in the running app. */
+/** Curated cinematic viewpoints. Positions were composed by eye in the running app. The first nine are on keys 1–9. */
 export const BOOKMARKS: Bookmark[] = [
-  { id: 'skyline', label: 'Manhattan Skyline', caption: 'Golden hour across the East River', preset: 'golden',
-    pos: P(40.7402, -73.9612, 185), target: P(40.7530, -73.9800, 195), fov: 34 },
-  { id: 'avengers', label: 'Avengers Tower', caption: 'Hero shot over Park Avenue', preset: 'avengers',
+  { id: 'golden-midtown', label: 'Golden Hour Midtown', caption: 'Warm stone, cool shade above the avenues', preset: 'golden',
+    pos: [-300, 230, 300], target: [-100, 120, -100], fov: 45 },
+  { id: 'avengers', label: 'Avengers Tower', caption: 'Hero view over Park Avenue', preset: 'avengers',
     pos: off(S.avengers, 300, 215, 520), target: off(S.avengers, 0, 262, 0), fov: 36 },
-  { id: 'rooftop', label: 'Rooftop Panorama', caption: 'A pre-war parapet above Fifth Avenue', preset: 'rooftop',
-    pos: off(S.rooftop, -4.5, 129.2, 9.5), target: off(S.rooftop, 3, 127.2, -12), fov: 40 },
   { id: 'sanctum', label: 'Sanctum Exterior', caption: 'Bleecker Street, Greenwich Village', preset: 'sanctum',
     pos: off(S.sanctum, 14, 1.75, 25), target: off(S.sanctum, 4, 4.2, 6), fov: 38 },
-  { id: 'midtown-night', label: 'Midtown Night', caption: 'The skyline after dark', preset: 'midnight',
-    pos: P(40.7335, -73.9905, 360), target: P(40.7530, -73.9790, 190), fov: 32 },
-  { id: 'riverfront', label: 'Riverfront Panorama', caption: 'Across the East River', preset: 'blue',
-    pos: P(40.7452, -73.9618, 9), target: P(40.7522, -73.9770, 135), fov: 44 },
+  { id: 'street', label: 'Midtown Street', caption: 'Park Avenue at eye level', preset: 'street',
+    pos: [-107, 1.8, 190], target: [38, 120, -73], fov: 55 },
+  { id: 'rooftop', label: 'Rooftop Panorama', caption: 'A pre-war parapet above Fifth Avenue', preset: 'rooftop',
+    pos: off(S.rooftop, -4.5, 129.2, 9.5), target: off(S.rooftop, 3, 127.2, -12), fov: 40 },
   { id: 'times-square', label: 'Rainy Times Square', caption: 'Neon on wet asphalt', preset: 'rain',
     pos: off(S.timessquare, -18, 2.4, 95), target: off(S.timessquare, 4, 22, -60), fov: 44 },
+  { id: 'riverfront', label: 'Blue Hour Riverfront', caption: 'Across the East River', preset: 'blue',
+    pos: P(40.7452, -73.9618, 9), target: P(40.7522, -73.9770, 135), fov: 44 },
+  { id: 'midtown-night', label: 'Midtown Night', caption: 'The skyline after dark', preset: 'midnight',
+    pos: P(40.7335, -73.9905, 360), target: P(40.7530, -73.9790, 190), fov: 32 },
   { id: 'snow', label: 'Snowy Manhattan', caption: 'Winter over the rooftops', preset: 'snow',
     pos: P(40.7640, -73.9925, 310), target: P(40.7500, -73.9830, 120), fov: 38 },
+  { id: 'skyline', label: 'East River Sunset', caption: 'The skyline against the low sun', preset: 'sunset',
+    pos: P(40.7402, -73.9612, 185), target: P(40.7530, -73.9800, 195), fov: 34 },
   { id: 'hudson', label: 'Hudson Waterfront', caption: 'Amber light on the West Side', preset: 'golden',
     pos: P(40.7350, -74.0235, 120), target: P(40.7560, -73.9790, 230), fov: 30 },
   { id: 'overview', label: 'High Altitude', caption: 'The whole island', preset: 'golden',
@@ -45,6 +49,10 @@ export const BOOKMARKS: Bookmark[] = [
   { id: 'bugle', label: 'Daily Bugle', caption: 'Stop the presses', preset: 'golden',
     pos: off(S.bugle, -52, 146, 128), target: off(S.bugle, 0, 117, 0), fov: 42 },
 ];
+
+/** Ids from Phase 1 (character-era) saves and links → their architectural successors. */
+export const LEGACY_IDS: Record<string, string> = { spidey: 'rooftop' };
+export const resolveId = (id: string) => LEGACY_IDS[id] ?? id;
 
 export interface ScenePreset {
   id: string;
@@ -60,22 +68,26 @@ const grade = (p: Partial<Params>): Partial<Params> => ({
 });
 
 export const SCENE_PRESETS: ScenePreset[] = [
-  { id: 'golden', label: 'MCU Golden Hour', caption: 'Warm sun, long shadows, amber glass', bookmark: 'skyline',
-    params: grade({ timeOfDay: 19.45, sunElevation: 8, weather: 'clear', ...WEATHER_PRESETS.clear, cloudCoverage: 0.4, atmosphere: 0.6, fov: 34 }) },
-  { id: 'avengers', label: 'Avengers at Sunset', caption: 'The tower against a burning sky', bookmark: 'avengers',
-    params: grade({ timeOfDay: 20.0, sunElevation: 2.5, weather: 'clear', ...WEATHER_PRESETS.clear, cloudCoverage: 0.52, atmosphere: 0.7, bloom: 0.55, windowLighting: 0.6, fov: 36 }) },
-  { id: 'blue', label: 'New York Blue Hour', caption: 'Deep blue sky, warm windows', bookmark: 'riverfront',
-    params: grade({ timeOfDay: 20.7, sunElevation: -5, weather: 'clear', ...WEATHER_PRESETS.clear, cloudCoverage: 0.3, atmosphere: 0.5, bloom: 0.55, exposure: 1.05, fov: 46 }) },
-  { id: 'midnight', label: 'Cinematic Midnight', caption: 'A city that never sleeps', bookmark: 'midtown-night',
-    params: grade({ timeOfDay: 0.2, sunElevation: -18, weather: 'clear', ...WEATHER_PRESETS.clear, cloudCoverage: 0.25, fogDensity: 0.34, bloom: 0.6, contrast: 0.56, fov: 32 }) },
-  { id: 'rain', label: 'Rainy Manhattan', caption: 'Wet asphalt and neon', bookmark: 'times-square',
-    params: grade({ timeOfDay: 22.5, sunElevation: -18, weather: 'rain', ...WEATHER_PRESETS.rain, bloom: 0.7, contrast: 0.55, saturation: 0.56, fov: 44 }) },
-  { id: 'snow', label: 'Snowy New York', caption: 'Rooftops under fresh snow', bookmark: 'snow',
-    params: grade({ timeOfDay: 16.2, sunElevation: 14, weather: 'snow', ...WEATHER_PRESETS.snow, colorTemperature: 7200, saturation: 0.44, fov: 38 }) },
+  { id: 'golden', label: 'Manhattan Golden Hour Skyline', caption: 'Warm sun, long shadows, amber glass', bookmark: 'golden-midtown',
+    params: grade({ timeOfDay: 19.45, sunElevation: 8, weather: 'clear', ...WEATHER_PRESETS.clear, fogDensity: 0.26, cloudCoverage: 0.4, atmosphere: 0.55, contrast: 0.54, fov: 45 }) },
+  { id: 'avengers', label: 'Avengers Tower Hero View', caption: 'The tower against a burning sky', bookmark: 'avengers',
+    params: grade({ timeOfDay: 20.0, sunElevation: 2.5, weather: 'clear', ...WEATHER_PRESETS.clear, cloudCoverage: 0.52, atmosphere: 0.7, bloom: 0.5, windowLighting: 0.6, fov: 36 }) },
+  { id: 'sanctum', label: 'Greenwich Village / Sanctum Exterior', caption: 'Bleecker Street at dusk', bookmark: 'sanctum',
+    params: grade({ timeOfDay: 20.55, sunElevation: -3.5, weather: 'clear', ...WEATHER_PRESETS.clear, wetness: 0.35, cloudCoverage: 0.35, bloom: 0.5, exposure: 1.1, fov: 46, magicIntensity: 0.8 }) },
+  { id: 'street', label: 'Midtown Street Photography', caption: 'Late sun down the avenue', bookmark: 'street',
+    params: grade({ timeOfDay: 18.7, sunElevation: 15, weather: 'clear', ...WEATHER_PRESETS.clear, fogDensity: 0.24, cloudCoverage: 0.3, atmosphere: 0.5, contrast: 0.54, bloom: 0.35, fov: 55 }) },
   { id: 'rooftop', label: 'Manhattan Rooftop Panorama', caption: 'Water tanks and parapets at sunset', bookmark: 'rooftop',
-    params: grade({ timeOfDay: 19.75, sunElevation: 5, weather: 'clear', ...WEATHER_PRESETS.clear, cloudCoverage: 0.48, atmosphere: 0.68, bloom: 0.5, dof: 0.22, focusDistance: 4.6, fov: 44 }) },
-  { id: 'sanctum', label: 'Greenwich Village / Sanctum', caption: 'Bleecker Street at dusk', bookmark: 'sanctum',
-    params: grade({ timeOfDay: 20.55, sunElevation: -3.5, weather: 'clear', ...WEATHER_PRESETS.clear, wetness: 0.45, cloudCoverage: 0.35, bloom: 0.6, exposure: 1.1, dof: 0.1, focusDistance: 3.4, fov: 46, magicIntensity: 0.8 }) },
+    params: grade({ timeOfDay: 19.75, sunElevation: 5, weather: 'clear', ...WEATHER_PRESETS.clear, cloudCoverage: 0.48, atmosphere: 0.62, bloom: 0.45, fov: 44 }) },
+  { id: 'rain', label: 'Rainy Times Square', caption: 'Wet asphalt and neon', bookmark: 'times-square',
+    params: grade({ timeOfDay: 22.5, sunElevation: -18, weather: 'rain', ...WEATHER_PRESETS.rain, bloom: 0.6, contrast: 0.55, saturation: 0.54, fov: 44 }) },
+  { id: 'blue', label: 'Blue Hour Riverfront', caption: 'Deep blue sky, warm windows', bookmark: 'riverfront',
+    params: grade({ timeOfDay: 20.7, sunElevation: -5, weather: 'clear', ...WEATHER_PRESETS.clear, cloudCoverage: 0.3, atmosphere: 0.5, bloom: 0.5, exposure: 1.05, fov: 46 }) },
+  { id: 'midnight', label: 'Cinematic Midnight', caption: 'A city that never sleeps', bookmark: 'midtown-night',
+    params: grade({ timeOfDay: 0.2, sunElevation: -18, weather: 'clear', ...WEATHER_PRESETS.clear, cloudCoverage: 0.25, fogDensity: 0.34, bloom: 0.5, contrast: 0.56, fov: 32 }) },
+  { id: 'snow', label: 'Snowy New York', caption: 'Rooftops under fresh snow at dusk', bookmark: 'snow',
+    params: grade({ timeOfDay: 16.9, sunElevation: 1, weather: 'snow', ...WEATHER_PRESETS.snow, colorTemperature: 7200, saturation: 0.46, windowLighting: 0.7, exposure: 1.08, fov: 38 }) },
+  { id: 'sunset', label: 'East River Sunset', caption: 'Silhouettes and a glitter path', bookmark: 'skyline',
+    params: grade({ timeOfDay: 19.6, sunElevation: 6, weather: 'clear', ...WEATHER_PRESETS.clear, fogDensity: 0.3, cloudCoverage: 0.42, atmosphere: 0.62, contrast: 0.55, fov: 34 }) },
   { id: 'fog', label: 'Foggy Morning', caption: 'Layered silhouettes in the mist', bookmark: 'hudson',
     params: grade({ timeOfDay: 7.4, sunElevation: 17, weather: 'fog', ...WEATHER_PRESETS.fog, saturation: 0.42, fov: 30 }) },
   { id: 'overcast', label: 'Overcast Day', caption: 'Soft light, architectural clarity', bookmark: 'overview',

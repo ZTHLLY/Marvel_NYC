@@ -15,7 +15,7 @@ export const CUSTOM_ROWS = 24;
 const TEX_W = 8;
 
 /** Surface codes packed into the style attribute (code = row + surface * 1024). */
-export enum Surf { Wall = 0, Roof = 1, Trim = 2, Metal = 3, Wood = 4, Dark = 5, Glass = 6, Steel = 7, Blank = 8, Awning = 9 }
+export enum Surf { Wall = 0, Roof = 1, Trim = 2, Metal = 3, Wood = 4, Dark = 5, Glass = 6, Steel = 7, Blank = 8, Awning = 9, Painted = 10 }
 
 export interface StyleInfo { floorH: number; groundH: number; bayW: number; family: Family; roofLight: number }
 
@@ -226,6 +226,7 @@ const V_MAIN = /* glsl */ `
 
 const F_PARS = /* glsl */ `
 uniform float uWindowLight; uniform float uDetail; uniform float uStreetGlow;
+uniform sampler2D uSignAtlas;
 flat varying vec4 vS0; flat varying vec4 vS1; flat varying vec4 vS2; flat varying vec4 vS3;
 flat varying vec4 vS4; flat varying vec4 vS5; flat varying vec4 vS6; flat varying vec4 vS7;
 flat varying vec3 vInfo;
@@ -234,6 +235,23 @@ float rectMask(vec2 f, vec2 a, vec2 b, vec2 fw){
   fw = max(fw, vec2(1e-4));
   vec2 lo = smoothstep(a - fw, a + fw, f); vec2 hi = 1.0 - smoothstep(b - fw, b + fw, f);
   return lo.x * lo.y * hi.x * hi.y;
+}
+// distance (m) to the nearest edge of a running-bond cell, plus the cell id
+vec3 bondCell(vec2 uv, vec2 size, out vec2 cid){
+  vec2 b = uv / size; b.x += 0.5 * mod(floor(b.y), 2.0);
+  cid = floor(b); vec2 bf = fract(b);
+  vec2 d = min(bf, 1.0 - bf) * size;
+  return vec3(d, 0.0);
+}
+// screen-space bump mapping from a procedural height field given in metres (Mikkelsen)
+vec3 forgeBump(vec3 N, float h){
+  vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition);
+  vec3 r1 = cross(sy, N), r2 = cross(N, sx);
+  float det = dot(sx, r1);
+  vec3 g = sign(det) * (dFdx(h) * r1 + dFdy(h) * r2);
+  vec3 o = abs(det) * N - g;
+  float l = length(o);
+  return l > 1e-9 ? o / l : N;
 }
 `;
 
@@ -245,43 +263,81 @@ const F_SURFACE = /* glsl */ `
   vec3 V = normalize(toCam);
   vec2 uvm = vFUv;
   vec3 albedo = vS1.rgb; float rough = 0.86; float metal = 0.0; vec3 emis = vec3(0.0);
+  float hgt = 0.0;                                        // procedural relief (m), bump-mapped after the branches
   float pix = max(fwidth(uvm.x), fwidth(uvm.y));         // metres per pixel on this surface
   float fine = 1.0 - smoothstep(0.008, 0.04, pix);        // brick-scale detail visibility (fades before it can moiré)
+  float mid = 1.0 - smoothstep(0.03, 0.25, pix);          // block / panel scale
   float n1 = vnoise(uvm * 0.31 + seed * 97.0);
   float n2 = vnoise(vec2(uvm.x * 2.3, uvm.y * 0.23) + seed * 31.0);
+  float bSeed = h21(vec2(seed * 61.7, 4.3));              // per-building randoms
+  float bSeed2 = h21(vec2(seed * 17.3, 9.1));
   if (surf < 0.5 || (surf > 7.5 && surf < 8.5)) {
     // ================= FACADE =================
     float bayW = vS0.z, floorH = vS0.w, groundH = vS4.x;
     float wallType = vS1.a;
-    vec3 wallCol = vS1.rgb * (0.84 + 0.2 * n1) * (0.93 + 0.12 * n2);
-    wallCol *= mix(0.74, 1.0, smoothstep(0.0, 22.0, uvm.y));            // street grime & canyon occlusion
+    float curtain = step(3.5, wallType) * step(wallType, 4.5);
+    vec3 wallCol = vS1.rgb * (0.86 + 0.18 * n1) * (0.94 + 0.1 * n2);
     float wallRough = 0.88;
-    if (wallType < 0.5) {            // brick
-      vec2 b = uvm / vec2(0.22, 0.075); b.x += 0.5 * mod(floor(b.y), 2.0);
-      vec2 bf = fract(b); float mortar = max(step(bf.x, 0.07), step(bf.y, 0.16));
-      float bv = h21(floor(b) + seed * 13.0);
-      wallCol = mix(wallCol, mix(wallCol * (0.78 + 0.42 * bv), wallCol * 1.25 + 0.06, mortar), fine);
-    } else if (wallType < 1.5) {     // limestone blocks
-      vec2 b = uvm / vec2(1.3, 0.62); b.x += 0.5 * mod(floor(b.y), 2.0);
-      vec2 bf = fract(b); float joint = max(step(bf.x, 0.012), step(bf.y, 0.03));
-      wallCol = mix(wallCol, wallCol * mix(0.9 + 0.2 * h21(floor(b) + seed), 0.72, joint), 1.0 - smoothstep(0.03, 0.25, pix));
-      wallRough = 0.8;
-    } else if (wallType < 2.5) {     // concrete / painted
-      wallCol *= 0.94 + 0.1 * vnoise(uvm * 4.0);
-      wallRough = 0.82;
-    } else if (wallType < 3.5) {     // metal panel
-      vec2 b = uvm / vec2(1.5, floorH); vec2 bf = fract(b);
-      float joint = max(step(bf.x, 0.012), step(bf.y, 0.02));
-      wallCol = mix(wallCol, wallCol * 0.6, joint * (1.0 - smoothstep(0.03, 0.3, pix)));
-      wallRough = 0.42; metal = 0.75;
-    } else if (wallType < 4.5) {     // spandrel glass
-      wallRough = 0.16; metal = 0.85;
-    } else if (wallType < 5.5) {     // brownstone
-      wallCol *= 0.92 + 0.14 * vnoise(uvm * 6.0);
-      wallRough = 0.92;
-    } else {                         // painted cast iron
-      wallRough = 0.6;
+    float weatherK = 1.0;
+    if (wallType < 0.5) {            // ---- brick, running bond
+      vec2 cid; vec3 d = bondCell(uvm, vec2(0.215, 0.073), cid);
+      float mortar = 1.0 - smoothstep(0.0035, 0.0035 + max(pix, 0.003), min(d.x, d.y));
+      float bv = h21(cid + seed * 13.0), bv2 = h21(cid * 1.7 + 3.3 + seed);
+      vec3 brick = wallCol * (0.76 + 0.46 * bv);
+      brick = mix(brick, brick * vec3(0.6, 0.58, 0.64), step(0.9, bv2));           // burnt headers
+      brick = mix(brick, brick * vec3(1.2, 1.12, 1.0), step(bv2, 0.07));           // pale replacements
+      brick *= 0.92 + 0.16 * vnoise(uvm * 41.0);
+      vec3 mortarCol = mix(vec3(0.46, 0.44, 0.4), vS1.rgb * 0.5, 0.3 + 0.5 * bSeed) * (0.85 + 0.3 * n1);
+      wallCol = mix(wallCol, mix(brick, mortarCol, mortar), fine);
+      hgt += (0.003 * bv - 0.007 * mortar) * fine;
+      wallRough = 0.92 - 0.14 * bv * fine;
+    } else if (wallType < 1.5) {     // ---- limestone ashlar
+      vec2 cid; vec3 d = bondCell(uvm, vec2(1.22, 0.61), cid);
+      float joint = 1.0 - smoothstep(0.005, 0.005 + max(pix, 0.006), min(d.x, d.y));
+      float bv = h21(cid + seed);
+      wallCol *= mix(1.0, 0.9 + 0.2 * bv, mid);
+      wallCol *= 1.0 - 0.1 * fine * vnoise(vec2(uvm.x * 3.0, uvm.y * 23.0) + bv * 9.0);       // bedding veins
+      wallCol = mix(wallCol, wallCol * 0.5, joint * mid);
+      hgt += -0.012 * joint * mid;
+      wallRough = 0.76;
+    } else if (wallType < 2.5) {     // ---- concrete / painted stucco
+      wallCol *= 0.93 + 0.1 * vnoise(uvm * 4.0) + 0.05 * fine * vnoise(uvm * 37.0);
+      float pour = 1.0 - smoothstep(0.0, 0.012 + pix, abs(fract((uvm.y - groundH) / floorH + 0.5) - 0.5) * floorH);
+      wallCol *= 1.0 - 0.2 * pour * mid;
+      hgt += -0.006 * pour * mid + 0.002 * fine * vnoise(uvm * 23.0);
+      wallRough = 0.84;
+      weatherK = 1.25;
+    } else if (wallType < 3.5) {     // ---- metal panel
+      vec2 ps = vec2(1.5, floorH); vec2 b = uvm / ps; vec2 cid = floor(b); vec2 d = min(fract(b), 1.0 - fract(b)) * ps;
+      float joint = 1.0 - smoothstep(0.006, 0.006 + max(pix, 0.006), min(d.x, d.y));
+      float pv = h21(cid + seed * 3.0);
+      wallCol *= mix(1.0, 0.93 + 0.14 * pv, mid);
+      wallCol = mix(wallCol, wallCol * 0.4, joint * mid);
+      hgt += -0.01 * joint * mid;
+      wallRough = 0.36 + 0.14 * pv; metal = 0.78;
+      weatherK = 0.3;
+    } else if (wallType < 4.5) {     // ---- spandrel glass
+      wallRough = 0.16; metal = 0.85; weatherK = 0.0;
+    } else if (wallType < 5.5) {     // ---- brownstone
+      float course = 1.0 - smoothstep(0.0, 0.006 + pix, abs(fract(uvm.y / 0.42) - 0.5) * 0.42);
+      wallCol *= 0.9 + 0.16 * vnoise(uvm * 6.0);
+      float spall = smoothstep(0.62, 0.75, vnoise(uvm * 1.3 + seed * 5.0));
+      wallCol = mix(wallCol, wallCol * vec3(0.82, 0.8, 0.8), spall * 0.6);
+      wallCol *= 1.0 - 0.25 * course * mid;
+      hgt += (0.004 * vnoise(uvm * 17.0) - 0.006 * spall) * fine - 0.008 * course * mid;
+      wallRough = 0.93;
+    } else {                         // ---- painted cast iron
+      wallCol *= 0.96 + 0.06 * vnoise(uvm * 9.0);
+      wallRough = 0.55; weatherK = 0.6;
     }
+    // ---- weathering: rain wash under the coping, soot streaks, street grime
+    float streak = vnoise(vec2(uvm.x * 1.9 + seed * 7.0, uvm.y * 0.07));
+    float streakF = vnoise(vec2(uvm.x * 8.0, uvm.y * 0.3 + seed * 3.0));
+    float wash = exp(-max(topY - uvm.y, 0.0) / 6.0);
+    float dirt = weatherK * (0.6 * wash * smoothstep(0.25, 0.8, streak) + 0.2 * smoothstep(0.45, 0.9, streak * streakF * 1.9));
+    wallCol *= 1.0 - 0.42 * dirt;
+    wallCol *= mix(0.72, 1.0, smoothstep(0.0, 22.0, uvm.y));            // street grime & canyon occlusion
+    wallRough = mix(wallRough, 0.95, dirt * 0.6);
     albedo = wallCol; rough = wallRough;
     float wallMetal = metal;
 
@@ -289,11 +345,12 @@ const F_SURFACE = /* glsl */ `
     float isParapet = step(topY - 0.02, uvm.y);
     if (surf > 7.5) isParapet = 1.0;
     float lit = 0.0; vec3 litCol = vec3(0.0); float win = 0.0;
-    vec2 id; vec2 f; vec2 fw; vec2 a; vec2 b2; float winW; float winH; float isGround = 0.0;
+    vec2 id; vec2 f; vec2 fw; vec2 a; vec2 b2; float winW; float winH; float isGround = 0.0; float shop = 0.0;
     // screen-space derivatives are taken up front: they are undefined inside divergent branches
     float gbay = bayW * max(1.0, floor(4.6 / bayW + 0.5));
     vec2 fwUp = max(fwidth(vec2(uvm.x / bayW, aboveG / floorH)), vec2(1e-5)) * 0.75;
     vec2 fwGd = max(fwidth(vec2(uvm.x / gbay, uvm.y / groundH)), vec2(1e-5)) * 0.75;
+    float cellW = bayW, cellH = floorH;
     if (aboveG >= 0.0) {
       vec2 cell = vec2(uvm.x / bayW, aboveG / floorH);
       id = floor(cell); f = fract(cell); fw = fwUp;
@@ -303,26 +360,49 @@ const F_SURFACE = /* glsl */ `
       // storefront / lobby level: wide bays
       vec2 cell = vec2(uvm.x / gbay, uvm.y / groundH);
       id = floor(cell) + vec2(0.0, -7.0); f = fract(cell); fw = fwGd;
-      float shop = step(h21(vec2(id.x * 0.37, seed * 5.0)), vS6.a);
-      winW = mix(vS0.x * 0.6, 0.9, shop); winH = mix(0.5, 0.66, shop);
-      a = vec2(0.5 - winW * 0.5, mix(0.3, 0.08, shop)); b2 = a + vec2(winW, winH);
+      cellW = gbay; cellH = groundH;
+      shop = step(h21(vec2(id.x * 0.37, seed * 5.0)), max(vS6.a, curtain));
+      winW = mix(vS0.x * 0.6, 0.9, shop); winH = mix(0.5, 0.7, shop);
+      a = vec2(0.5 - winW * 0.5, mix(0.3, 0.45 / groundH, shop)); b2 = a + vec2(winW, winH);
       isGround = 1.0;
-      // sign band above shop windows
-      float sw = 0.25 + 0.6 * h21(id + 2.3);
-      float band = rectMask(f, vec2(0.5 - sw * 0.5, 0.8), vec2(0.5 + sw * 0.5, 0.92), fw) * shop * step(0.3, h21(id + 6.1));
-      vec3 signCol = mix(vS7.rgb, vec3(h21(id + 1.7), h21(id + 4.1), h21(id + 9.3)), 0.4) * 0.45 + 0.02;
-      signCol = mix(signCol, vec3(0.06), step(0.6, h21(id + 8.8)));
-      albedo = mix(albedo, signCol, band);
-      emis += (signCol + 0.05) * band * uNight * 1.6 * step(0.3, h21(id + seed * 3.0));
     }
     float lodc = clamp(max(fw.x, fw.y) * 1.33, 0.0, 1.0);
     float nearK = 1.0 - smoothstep(0.08, 0.3, lodc);
-    float curtain = step(3.5, wallType) * step(wallType, 4.5);
+    if (isGround > 0.5) {
+      // fascia sign above the shop window: a lettered band, lit after dark
+      float sw = 0.62 + 0.28 * h21(id + 2.3);
+      float sh0 = b2.y + 0.035, sh1 = min(sh0 + 0.62 / groundH, 0.97);
+      float hasSign = shop * step(0.22, h21(id + 6.1));
+      float band = rectMask(f, vec2(0.5 - sw * 0.5, sh0), vec2(0.5 + sw * 0.5, sh1), fw) * hasSign;
+      vec2 sUv = vec2((f.x - 0.5) / sw, (f.y - sh0) / max(sh1 - sh0, 1e-3));
+      float sAsp = (sw * gbay) / max((sh1 - sh0) * groundH, 0.05);
+      sUv.x = 0.5 - sUv.x * sAsp / 4.3;                 // wall u runs right-to-left seen from the street
+      float cellN = floor(h21(id * 1.31 + seed * 23.0) * 32.0);
+      vec2 aUv = (vec2(mod(cellN, 4.0), floor(cellN / 4.0)) + clamp(vec2(sUv.x, sUv.y), 0.02, 0.98)) / vec2(4.0, 8.0);
+      float ink = texture2D(uSignAtlas, aUv).r * step(0.02, sUv.x) * step(sUv.x, 0.98);
+      float sStyle = h21(id + 8.8 + seed);
+      vec3 hue = mix(vS7.rgb, vec3(h21(id + 1.7), h21(id + 4.1), h21(id + 9.3)), 0.45);
+      vec3 bg = sStyle < 0.4 ? vec3(0.035, 0.036, 0.04) : (sStyle < 0.75 ? hue * 0.4 + 0.02 : vec3(0.74, 0.72, 0.66));
+      vec3 fg = sStyle < 0.4 ? mix(vec3(0.85, 0.8, 0.68), hue + 0.25, step(0.2, sStyle)) : (sStyle < 0.75 ? vec3(0.88, 0.86, 0.8) : hue * 0.3);
+      vec3 signCol = mix(bg, fg, ink);
+      albedo = mix(albedo, signCol, band);
+      rough = mix(rough, 0.45, band);
+      hgt += 0.04 * band;
+      float signOn = step(0.35, h21(id + seed * 3.0));
+      emis += (sStyle < 0.4 ? fg * ink * 2.2 : signCol * 0.9) * band * uNight * signOn;
+      // polished stone bulkhead under the glass, and a plinth course along the whole street wall
+      float kick = step(f.y, a.y) * shop * step(a.x - 0.02, f.x) * step(f.x, b2.x + 0.02);
+      albedo = mix(albedo, mix(vec3(0.045, 0.045, 0.05), vS3.rgb * 0.6, 0.35), kick);
+      rough = mix(rough, 0.28, kick);
+    }
+    float plinth = (1.0 - smoothstep(0.75, 0.78 + pix, uvm.y)) * (1.0 - curtain);
+    albedo = mix(albedo, albedo * 0.62, plinth * (1.0 - isParapet));
+    hgt += 0.03 * plinth;
     // recessed glazing: the glass sits behind the wall plane, so the reveals show with parallax
     vec3 T = normalize(cross(wN, vec3(0.0, 1.0, 0.0)));
     vec3 vt = vec3(dot(V, T), V.y, max(dot(V, wN), 0.06));
     float recess = mix(0.26, 0.07, curtain) * nearK * (isGround > 0.5 ? 1.6 : 1.0);
-    vec2 fG = f - vt.xy / vt.z * recess / vec2(bayW, isGround > 0.5 ? groundH : floorH);
+    vec2 fG = f - vt.xy / vt.z * recess / vec2(cellW, cellH);
     // minification: fade each axis to its own coverage so floor bands survive long after bays blur
     vec2 fwS = max(fw, vec2(1e-4));
     vec2 lo2 = smoothstep(a - fwS, a + fwS, f); vec2 hi2 = 1.0 - smoothstep(b2 - fwS, b2 + fwS, f);
@@ -335,50 +415,92 @@ const F_SURFACE = /* glsl */ `
     float reveal = open * (1.0 - glassM);
     // reveals: lit sill, shaded jambs and soffit
     float sillSide = step(fG.y, a.y);
-    albedo = mix(albedo, wallCol * mix(0.5, 1.12, sillSide), reveal);
+    albedo = mix(albedo, wallCol * mix(0.42, 1.12, sillSide), reveal);
+    hgt -= 0.05 * open * nearK;
 
-    // --- masonry articulation (piers, spandrels, sills)
+    // --- masonry articulation (piers, spandrels, lintels, sills, cornice frieze)
     float inX = step(a.x, f.x) * step(f.x, b2.x);
+    float inXs = smoothstep(a.x - fwS.x, a.x + fwS.x, f.x) * (1.0 - smoothstep(b2.x - fwS.x, b2.x + fwS.x, f.x));
     float notWin = (1.0 - win) * (1.0 - isParapet) * (1.0 - isGround);
     albedo *= 1.0 + vS5.x * 0.14 * (1.0 - inX) * notWin;                            // piers catch light
+    hgt += vS5.x * 0.14 * (1.0 - inXs) * (1.0 - isGround) * (1.0 - isParapet) * nearK;
     albedo = mix(albedo, albedo * 0.62 + vS3.rgb * 0.12, vS5.y * inX * notWin);     // spandrel panels
+    float masonry = step(wallType, 1.5) + step(4.5, wallType) * step(wallType, 5.5);
+    float trimSel = masonry * (1.0 - isGround) * nearK * step(bSeed, 0.72);
+    vec3 trimCol = mix(vec3(0.6, 0.57, 0.5) * (0.85 + 0.25 * n1), vS1.rgb * 0.62, step(0.42, bSeed));
+    float lintelH = 0.24 / floorH;
+    float lintel = rectMask(f, vec2(a.x - 0.035, b2.y), vec2(b2.x + 0.035, b2.y + lintelH), fw) * trimSel * (1.0 - open);
+    albedo = mix(albedo, trimCol * (1.0 - 0.3 * dirt), lintel);
+    hgt += 0.025 * lintel;
     float sill = rectMask(f, vec2(a.x - 0.04, a.y - 0.07), vec2(b2.x + 0.04, a.y), fw) * vS5.z * nearK * (1.0 - isGround);
-    albedo = mix(albedo, albedo * 1.25 + 0.08, sill * (1.0 - win));
+    albedo = mix(albedo, mix(albedo * 1.25 + 0.08, trimCol * 1.1, trimSel), sill * (1.0 - win));
+    hgt += 0.05 * sill * (1.0 - win);
+    // drip stains under sills
+    float drip = rectMask(f, vec2(a.x - 0.02, a.y - 0.07 - 0.9 / floorH), vec2(b2.x + 0.02, a.y - 0.07), fw * 2.0) * vS5.z * nearK * (1.0 - isGround);
+    albedo *= 1.0 - 0.16 * drip * weatherK * smoothstep(0.3, 0.7, streakF);
     albedo = mix(albedo, vec3(0.88, 0.91, 0.96), sill * (1.0 - win) * smoothstep(0.1, 0.5, uSnow));   // snow on sills
+    // cornice frieze with dentils below the parapet (masonry) — reads at every distance as a light band
+    float frz = masonry * step(12.0, topY) * (1.0 - smoothstep(0.03, 0.4, pix));
+    float frieze = smoothstep(topY - 0.62, topY - 0.58, uvm.y) * (1.0 - smoothstep(topY + 0.3, topY + 0.34, uvm.y)) * frz;
+    float dentil = smoothstep(topY - 0.95, topY - 0.92, uvm.y) * (1.0 - step(topY - 0.62, uvm.y)) * step(0.5, fract(uvm.x / 0.42)) * frz * fine;
+    albedo = mix(albedo, mix(trimCol * 1.08, wallCol * 1.16, step(0.72, bSeed)) * (1.0 - 0.35 * dirt), max(frieze, dentil) * (1.0 - win));
+    hgt += 0.07 * frieze + 0.05 * dentil;
     float feat = vS7.a;
     if (feat > 0.5 && feat < 1.5) { // slab edge / balcony line
       float slab = (1.0 - smoothstep(0.045, 0.045 + fw.y, f.y)) * (1.0 - isGround);
-      albedo = mix(albedo, vec3(0.78, 0.78, 0.76) * (0.85 + 0.2 * n1), slab * nearK);
+      albedo = mix(albedo, vec3(0.78, 0.78, 0.76) * (0.85 + 0.2 * n1) * (1.0 - 0.3 * dirt), slab * nearK);
       win *= 1.0 - slab * nearK;
+      hgt += 0.06 * slab * nearK;
     }
     if (isParapet > 0.5) { albedo *= 1.08; }
 
     // --- glazing
     if (win > 0.001) {
       vec2 wf = clamp((fG - a) / (b2 - a), 0.0, 1.0);     // 0..1 inside the window
-      // frames & mullions
-      float sub = feat > 1.5 && feat < 2.5 ? 4.0 : (winW > 0.8 ? 2.0 : (winW > 0.55 ? 2.0 : 1.0));
-      vec2 pf = vec2(fract(wf.x * sub), feat > 1.5 && feat < 2.5 ? fract(wf.y * 3.0) : wf.y);
-      vec2 fwid = vec2(vS3.a * sub / max(winW, 0.2), vS3.a * bayW / (floorH * max(winH, 0.2)));
+      float loft = step(1.5, feat) * step(feat, 2.5);
+      float sash = (1.0 - curtain) * step(winW, 0.62) * (1.0 - isGround);
+      // frames, mullions, sash meeting rails, shopfront transoms
+      float subx = loft > 0.5 ? 4.0 : (isGround > 0.5 ? mix(1.0, 3.0, shop) : (winW > 0.55 ? 2.0 : (sash * step(0.62, bSeed2) > 0.5 ? 2.0 : 1.0)));
+      float suby = loft > 0.5 ? 3.0 : (sash > 0.5 ? 2.0 : 1.0);
+      vec2 pf = fract(wf * vec2(subx, suby));
+      if (isGround > 0.5 && shop > 0.5) pf.y = wf.y < 0.74 ? wf.y / 0.74 : (wf.y - 0.74) / 0.26;
+      vec2 fwid = vec2(vS3.a * subx / max(winW, 0.2), vS3.a * suby * cellW / (cellH * max(winH, 0.2)));
       vec2 fe = min(pf, 1.0 - pf);
-      float frame = 1.0 - smoothstep(fwid.x * 0.5, fwid.x * 0.5 + fw.x * sub / winW, fe.x) * smoothstep(fwid.y * 0.5, fwid.y * 0.5 + fw.y / winH, fe.y);
+      float frame = 1.0 - smoothstep(fwid.x * 0.5, fwid.x * 0.5 + fw.x * subx / winW, fe.x) * smoothstep(fwid.y * 0.5, fwid.y * 0.5 + fw.y * suby / winH, fe.y);
       frame *= nearK;
       // room behind the glass
       float rCell = h21(id * 1.37 + seed * 13.0);
       float rFloor = h21(vec2(id.y * 3.1, seed * 91.0));
       float rr2 = h21(id * 0.73 + seed * 51.0);
-      float litRand = mix(rCell, rFloor * 0.75 + rCell * 0.25, vS4.w);
-      float litFrac = vS4.y * uWindowLight * (isGround > 0.5 ? 1.5 : 0.62);
+      float coh = vS4.w;
+      // ---- who is home: sleepy / busy buildings, tenant blocks of floors, whole lit office floors
+      float activity = bSeed < 0.22 ? 0.18 : (bSeed > 0.8 ? 1.7 : 0.55 + 0.75 * bSeed);
+      float zone = h21(vec2(floor(id.y / (3.0 + floor(bSeed2 * 7.0))) * 1.7, seed * 37.0));
+      activity *= mix(1.0, zone < 0.3 ? 0.12 : (zone > 0.78 ? 1.9 : 0.9), coh);
+      float litRand = mix(rCell, rFloor * 0.72 + rCell * 0.28, coh);
+      float litFrac = vS4.y * uWindowLight * (isGround > 0.5 ? 1.5 : 0.6 * activity);
       lit = step(litRand, litFrac);
-      float warm = clamp(vS4.z + (rr2 - 0.5) * 0.5, 0.0, 1.0);
-      litCol = mix(vec3(0.62, 0.8, 1.0), vec3(1.0, 0.6, 0.27), warm);
-      litCol = mix(litCol, vec3(0.45, 0.6, 1.0), step(0.965, rr2) * (1.0 - vS4.w));   // the odd television
-      float inten = 0.16 + 0.95 * pow(h21(id + seed * 7.0), 1.6);
+      float wT = clamp(vS4.z + (rr2 - 0.5) * 0.55 + (bSeed2 - 0.5) * 0.35, 0.0, 1.0);
+      litCol = wT < 0.5 ? mix(vec3(0.74, 0.88, 1.0), vec3(1.0, 0.9, 0.76), wT * 2.0) : mix(vec3(1.0, 0.9, 0.76), vec3(1.0, 0.6, 0.27), wT * 2.0 - 1.0);
+      litCol = mix(litCol, vec3(0.45, 0.6, 1.0), step(0.965, rr2) * (1.0 - coh));   // the odd television
+      float inten = 0.1 + 0.9 * pow(h21(id + seed * 7.0), 2.2);
+      inten = mix(inten, 0.3 + 0.35 * rFloor, coh * 0.7);                            // office floors are evenly lit
+      // ---- blinds, shades and curtains (drawn at every distance: they are what makes windows differ by day)
+      float sType = h21(id * 2.31 + seed * 29.0), sLen = h21(id * 0.91 + seed * 3.7);
+      float eY = max(fw.y / winH, 0.004), eX = max(fw.x / winW, 0.004);
+      float roller = smoothstep(1.0 - sLen * 0.85 - eY, 1.0 - sLen * 0.85 + eY, wf.y);
+      float drapes = 1.0 - smoothstep(0.1 + 0.2 * sLen - eX, 0.1 + 0.2 * sLen + eX, 0.5 - abs(wf.x - 0.5));
+      float blindM = curtain > 0.5
+        ? roller * step(sType, 0.5) * mix(1.0, step(0.35, rFloor), 0.5)
+        : (sType < 0.28 ? 0.0 : (sType < 0.6 ? roller : (sType < 0.86 ? drapes : 0.92)));
+      blindM *= (1.0 - isGround) * mix(1.0, 0.4, smoothstep(0.08, 0.45, lodc));     // far away they merge into the glass tone
+      vec3 blindCol = mix(vec3(0.74, 0.72, 0.66), vec3(0.62, 0.56, 0.48), step(0.7, rr2)) * (0.85 + 0.15 * rCell);
+      if (sType >= 0.86 && curtain < 0.5) blindCol *= 0.82 + 0.18 * step(0.5, fract(wf.y * winH * floorH / 0.05)) * fine;   // venetian slats
       vec3 room = vec3(0.6);
       if (uDetail > 0.5 && lodc < 0.3) {
         // interior mapping: intersect the view ray with a virtual room box
         vec3 rd = vec3(-vt.x, -vt.y, vt.z);
-        vec3 rsz = vec3(bayW, isGround > 0.5 ? groundH : floorH, 3.5 + 4.0 * rCell);
+        vec3 rsz = vec3(cellW, cellH, isGround > 0.5 ? 6.0 + 7.0 * rCell : 3.5 + 4.0 * rCell);
         vec3 ro = vec3(clamp(fG.x, 0.001, 0.999) * rsz.x, clamp(fG.y, 0.001, 0.999) * rsz.y, 0.0);
         vec3 tA = (step(vec3(0.0), rd) * rsz - ro) / rd;
         float tt = min(tA.x, min(tA.y, tA.z));
@@ -391,72 +513,124 @@ const F_SURFACE = /* glsl */ `
         shade *= 1.0 - 0.45 * furn;
         shade *= 1.0 - 0.4 * (hp.z / rsz.z);
         // ceiling light panels for offices
-        shade += cf * step(0.0, rd.y) * step(0.5, fract(hp.z * 0.7)) * vS4.w * 0.8;
+        shade += cf * step(0.0, rd.y) * step(0.5, fract(hp.z * 0.7)) * coh * 0.8;
         room = mix(vec3(0.75, 0.72, 0.66), vec3(0.6, 0.66, 0.74), rr2) * shade;
         if (isGround > 0.5) {
           // shop interiors: shelves of merchandise on the back wall, darker floor displays
-          vec2 mc = floor(vec2(hp.x * 1.5, hp.y * 2.6));
-          vec3 merch = 0.35 + 0.65 * vec3(h21(mc + id * 3.0), h21(mc + id * 3.0 + 3.1), h21(mc + id * 3.0 + 7.7));
-          room *= mix(vec3(0.8), merch, back * 0.75) * (0.55 + 0.45 * step(0.12, fract(hp.y * 2.6)));
+          // deep shop floor: shelving on the back and side walls, strip lights overhead, dark polished floor
+          float side = (1.0 - back) * (1.0 - cf);
+          vec2 sh = back > 0.5 ? vec2(hp.x * 4.5, hp.y * 2.6) : vec2(hp.z * 4.5, hp.y * 2.6);
+          vec2 mc = floor(sh);
+          vec3 merch = mix(vec3(0.42, 0.4, 0.37), vec3(h21(mc + id * 3.0), h21(mc + id * 3.0 + 3.1), h21(mc + id * 3.0 + 7.7)), 0.3) * (0.6 + 0.6 * h21(mc * 1.3 + 2.0));
+          float shelf = step(0.16, fract(sh.y)) * step(0.08, fract(sh.x)) * step(hp.y, rsz.y * 0.6);
+          room *= mix(vec3(0.85), merch * (0.35 + 0.65 * shelf), (back + side) * 0.8);
+          float strip = cf * step(0.0, rd.y) * step(0.72, fract(hp.x * 0.55 + 0.2)) * step(0.15, fract(hp.z * 0.33));
+          room += vec3(1.6) * strip;
+          room *= mix(1.0, 0.3, cf * step(rd.y, 0.0));
+          // goods standing in the window itself
+          float disp = step(wf.y, 0.2 + 0.16 * h21(vec2(floor(fG.x * cellW * 1.3), id.x))) * step(0.3, h21(vec2(floor(fG.x * cellW * 1.3) + 5.0, id.x + seed)));
+          room = mix(room, merch.gbr * 0.55, disp * 0.85);
         }
-        // blinds / curtains
-        float blind = step(1.0 - rCell * 0.75 * step(0.4, rr2), wf.y) * (1.0 - isGround);
-        room = mix(room, vec3(0.62, 0.6, 0.55) * (0.8 + 0.2 * step(0.5, fract(wf.y * 14.0))), blind * 0.85);
         room = mix(room, vec3(0.6), smoothstep(0.15, 0.3, lodc));
       }
-      float nightGain = mix(0.1, 1.0, smoothstep(0.0, 0.85, uNight)) * (isGround > 0.5 ? mix(1.5, 0.5, uNight) : 1.0);
-      vec3 interior = room * (lit * litCol * inten * 2.6 * nightGain + (1.0 - uNight) * 0.2 * (0.45 + 0.55 * rr2));
+      float nightGain = mix(0.1, 1.0, smoothstep(0.0, 0.85, uNight)) * (isGround > 0.5 ? mix(4.5, 0.75, uNight) : 1.0);
+      float glow = lit * inten * 1.9 * nightGain;
+      vec3 interior = room * (glow * litCol + (1.0 - uNight) * 0.13 * (0.45 + 0.55 * rr2)) * (1.0 - 0.85 * blindM);
+      interior += blindCol * litCol * glow * 0.42 * blindM;                           // drawn shades glow evenly
       float fres = pow(1.0 - max(dot(V, wN), 0.0), 3.0);
       vec3 glassCol = vS2.rgb * (0.9 + 0.2 * rCell);
-      vec3 gAlb = mix(glassCol * 0.42, glassCol * 0.85, curtain);
+      // punched windows are dark but still mirror ~15% of the sky, which is what catches the evening light
+      vec3 gAlb = mix(max(glassCol * 0.5, vec3(0.15, 0.17, 0.19)), glassCol * 0.85, curtain);
       gAlb *= mix(0.4, 1.0, smoothstep(2.0, 70.0, uvm.y));                              // street canyons hide the sky
-      gAlb *= 1.0 - 0.5 * smoothstep(0.82, 1.0, wf.y) * (1.0 - curtain) * nearK;       // lintel shadow
+      gAlb = mix(gAlb, blindCol * mix(0.85, 0.5, curtain), blindM * 0.9);
+      gAlb *= 1.0 - 0.55 * smoothstep(0.8, 1.0, wf.y) * (1.0 - curtain) * nearK;       // lintel shadow
       albedo = mix(albedo, mix(gAlb, vS3.rgb, frame), win);
-      metal = mix(wallMetal, mix(0.9, 0.55, frame), win);
+      float gMetal = mix(mix(0.86, 0.9, curtain), mix(0.2, 0.6, curtain), blindM);
+      metal = mix(wallMetal, mix(gMetal, 0.5, frame), win);
       rough = mix(rough, mix(vS2.a + 0.05 * rr2, 0.5, frame), win);
       emis += interior * win * (1.0 - frame) * (1.0 - 0.6 * fres);
+      hgt += 0.03 * frame * win;
       // per-pane tilt: real curtain walls are never perfectly flat
-      vec2 tilt = (vec2(h21(id + 3.1 + seed), h21(id + 7.7 + seed)) - 0.5) * 0.05 * win * nearK;
+      vec2 tilt = (vec2(h21(id + 3.1 + seed), h21(id + 7.7 + seed)) - 0.5) * 0.05 * win * nearK * (1.0 - frame);
       vec3 wN2 = normalize(wN + T * tilt.x + vec3(0.0, 1.0, 0.0) * tilt.y);
       normal = normalize((viewMatrix * vec4(wN2, 0.0)).xyz);
     }
     // --- night: crown up-lighting and street-level glow on masonry
     float crown = vS5.w * smoothstep(topY - 16.0, topY + 1.0, uvm.y) * step(40.0, topY);
     vec3 crownCol = mix(vec3(1.0, 0.82, 0.6), vS7.rgb * 1.2 + 0.2, 0.25 * step(0.8, h21(vec2(seed * 77.0, 3.0))));
-    emis += albedo * crownCol * crown * uNight * 1.6 * (1.0 - win) * uWindowLight;
+    emis += albedo * crownCol * crown * uNight * 1.6 * (1.0 - win) * uWindowLight * step(0.45, bSeed2);
     emis += albedo * vec3(1.0, 0.7, 0.42) * uNight * uStreetGlow * exp(-uvm.y / 6.5) * 0.55 * (1.0 - win);
   } else if (surf < 1.5) {
     // ================= ROOF =================
     vec2 wp = vFogWorld.xz;
     float rn = vnoise(wp * 0.21 + seed * 40.0); float rn2 = vnoise(wp * 2.7);
-    albedo = vS6.rgb * (0.72 + 0.4 * rn) * (0.92 + 0.14 * rn2);
+    albedo = vS6.rgb * (0.6 + 0.32 * rn) * (0.92 + 0.14 * rn2);
     #ifdef FORGE_INSTANCED
     albedo = mix(albedo, vec3(0.3, 0.29, 0.28) * (0.7 + 0.6 * h21(vec2(seed * 31.0, 4.0))), 0.6);
+    #else
+    // membrane seams / gravel ballast / silver-coated patches, aligned with the street grid
+    vec2 gp = vec2(wp.x * 0.8755 + wp.y * 0.4833, -wp.x * 0.4833 + wp.y * 0.8755);
+    float lum = dot(vS6.rgb, vec3(0.33));
+    float seamW = mix(0.95, 1.9, bSeed);
+    float seamD = abs(fract(gp.x / seamW + seed) - 0.5) * seamW;
+    float seam = (1.0 - smoothstep(0.03, 0.06 + pix, seamD)) * mid;
+    // repair patches: rectangles of newer / older felt
+    vec2 pc2 = floor(gp / vec2(5.5, 3.7) + seed * 3.0);
+    float patchR = h21(pc2 + seed * 11.0);
+    albedo *= mix(1.0, patchR < 0.5 ? 0.72 : 1.22, step(0.72, h21(pc2 * 1.9 + 2.0)) * (1.0 - smoothstep(0.1, 0.6, pix)));
+    float gravel = vnoise(wp * 23.0) * fine;
+    float kind = step(0.5, bSeed2);                       // 0 built-up gravel roof, 1 membrane sheets
+    albedo *= mix(0.86 + 0.3 * gravel, 1.0 - 0.3 * seam, kind);
+    float pond = smoothstep(0.58, 0.66, vnoise(wp * 0.16 + seed * 9.0));
+    albedo = mix(albedo, albedo * 0.62, pond);                                         // ponding stains
+    albedo = mix(albedo, albedo * 1.25 + 0.03, pond * (1.0 - smoothstep(0.66, 0.7, vnoise(wp * 0.16 + seed * 9.0))) * 0.0);
+    float coat = smoothstep(0.6, 0.64, vnoise(wp * 0.05 + seed * 3.0)) * step(lum, 0.3);
+    albedo = mix(albedo, vec3(0.5, 0.51, 0.52) * (0.85 + 0.2 * rn2), coat * 0.75);     // aluminium roof coating
+    hgt += 0.006 * gravel * (1.0 - kind) + 0.01 * seam * kind;
     #endif
-    albedo = mix(albedo, albedo * 0.7, smoothstep(0.55, 0.75, vnoise(wp * 0.07 + seed * 9.0)));   // patched repairs
     rough = 0.92;
   } else if (surf < 2.5) {       // trim / stone coping
     albedo = vS1.rgb * 1.08 * (0.88 + 0.16 * n1); rough = 0.8;
+    float cj = 1.0 - smoothstep(0.0, 0.008 + pix, abs(fract(uvm.x / 1.1) - 0.5) * 1.1);
+    albedo *= 1.0 - 0.35 * cj * mid;
+    albedo *= 0.9 + 0.14 * vnoise(uvm * 5.0);
+    hgt += -0.01 * cj * mid;
     if (vS1.a > 3.5 && vS1.a < 4.5) { albedo = vS3.rgb; rough = 0.45; metal = 0.6; }
   } else if (surf < 3.5) {       // mechanical metal with louvres
-    float lou = step(0.5, fract(uvm.y * 3.3));
-    albedo = vec3(0.42, 0.44, 0.46) * (0.75 + 0.3 * lou * fine + 0.2 * n1); rough = 0.5; metal = 0.7;
+    float lv = fract(uvm.y * 3.3);
+    float lou = smoothstep(0.42, 0.5, lv) * (1.0 - smoothstep(0.92, 1.0, lv));
+    albedo = vec3(0.42, 0.44, 0.46) * (0.72 + 0.3 * lou * fine + 0.2 * n1); rough = 0.5; metal = 0.7;
+    albedo *= 1.0 - 0.25 * smoothstep(0.5, 0.9, vnoise(vec2(uvm.x * 3.0, uvm.y * 0.4) + seed));   // rust & runoff
+    hgt += 0.02 * lou * fine;
   } else if (surf < 4.5) {       // cedar water tank staves
-    float st = h21(vec2(floor(uvm.x * 5.0), seed));
-    albedo = vec3(0.3, 0.2, 0.13) * (0.7 + 0.5 * st) * (0.85 + 0.2 * n1); rough = 0.9;
-    float hoop = step(0.93, fract(uvm.y * 1.3)); albedo = mix(albedo, vec3(0.12), hoop * fine);
+    float sx = uvm.x * 5.0;
+    float st = h21(vec2(floor(sx), seed));
+    float gap = 1.0 - smoothstep(0.0, 0.06, min(fract(sx), 1.0 - fract(sx)));
+    albedo = vec3(0.3, 0.2, 0.13) * (0.66 + 0.5 * st) * (0.85 + 0.2 * n1) * (1.0 - 0.5 * gap * fine); rough = 0.9;
+    albedo = mix(albedo, albedo * 0.6, smoothstep(0.4, 0.9, vnoise(vec2(uvm.x * 2.0, uvm.y * 0.35) + seed)) * 0.6);   // damp streaks
+    float hoop = step(0.9, fract(uvm.y * 1.3)); albedo = mix(albedo, vec3(0.1, 0.09, 0.085), hoop * mid);
+    metal = 0.6 * hoop * mid;
+    hgt += (-0.008 * gap + 0.012 * hoop) * fine;
   } else if (surf < 5.5) {       // dark voids / tar
     albedo = vec3(0.035, 0.035, 0.04); rough = 0.95;
   } else if (surf < 6.5) {       // plain glass (skylights, screens)
     albedo = vS2.rgb * 0.8; rough = 0.08; metal = 0.9;
     emis += vec3(1.0, 0.8, 0.55) * uNight * 0.25 * uWindowLight;
+  } else if (surf > 9.5) {       // painted plywood & pipe (sidewalk sheds, hoardings)
+    float pj = 1.0 - smoothstep(0.0, 0.012 + pix, abs(fract(uvm.x / 1.22) - 0.5) * 1.22);
+    vec3 pc = bSeed < 0.6 ? vec3(0.035, 0.12, 0.075) : (bSeed < 0.85 ? vec3(0.04, 0.07, 0.16) : vec3(0.3, 0.3, 0.29));
+    albedo = pc * (0.75 + 0.4 * n1) * (1.0 - 0.45 * pj * mid) * (0.9 + 0.16 * vnoise(uvm * 7.0)); rough = 0.78;
+    hgt += -0.008 * pj * mid;
   } else if (surf > 8.5) {       // canvas awnings
     vec3 ac = mix(vS7.rgb, vec3(h21(vec2(seed * 91.0, 1.0)), h21(vec2(seed * 53.0, 2.0)), h21(vec2(seed * 17.0, 3.0))) * 0.6, 0.5);
-    albedo = ac * (0.8 + 0.25 * step(0.5, fract(uvm.x * 1.6)) * step(0.5, h21(vec2(seed * 7.0, 9.0)))); rough = 0.85;
+    float stripe = step(0.5, fract(uvm.x * 1.6)) * step(0.5, h21(vec2(seed * 7.0, 9.0)));
+    albedo = mix(ac, vec3(0.8, 0.78, 0.72), stripe * 0.85) * (0.82 + 0.2 * vnoise(uvm * 3.0)); rough = 0.9;
   } else {                       // polished steel (spires, crowns)
     albedo = vec3(0.78, 0.8, 0.82); rough = 0.24; metal = 1.0;
     emis += vec3(1.0, 0.9, 0.75) * uNight * 0.22 * uWindowLight;
   }
+  // ---- relief
+  normal = forgeBump(normal, hgt);
   // ---- weather
   float upf = smoothstep(0.5, 0.85, wN.y);
   float sNoise = vnoise(vFogWorld.xz * 0.6) * 0.6 + vnoise(vFogWorld.xz * 4.0) * 0.4;
@@ -475,13 +649,45 @@ const F_SURFACE = /* glsl */ `
 }
 `;
 
-export const facadeUniforms = { uPalette: { value: null as THREE.Texture | null }, uStreetGlow: { value: 1 } };
+/** Shop names for fascia signs: 4 x 8 cells of white lettering on black (sampled as a mask). Generic NYC trades plus a few in-universe nods (text only). */
+const SIGN_NAMES = [
+  'DELI · GROCERY', 'PIZZA', 'BAGELS', 'COFFEE', 'PHARMACY', 'CLEANERS', 'HARDWARE', 'WINE & LIQUORS',
+  'FLOWERS', 'BOOKS', 'BARBER SHOP', 'NAIL SALON', 'DINER', 'BAKERY', 'MARKET', 'OPTICAL',
+  'SHOE REPAIR', 'TAILOR', 'LAUNDROMAT', 'GALLERY', 'RECORDS', 'NOODLE BAR', 'TAQUERIA', 'SUSHI',
+  "DELMAR'S DELI", "JOSIE'S BAR", 'ALIAS INVESTIGATIONS', 'NELSON & MURDOCK', 'BANK', 'HOTEL', 'BAR & GRILL', 'NEWS · CANDY',
+];
+const SIGN_FONTS = ['700 78px "Helvetica Neue", Arial, sans-serif', '700 76px Georgia, "Times New Roman", serif', '800 84px "Arial Narrow", "Helvetica Neue", Arial, sans-serif', 'italic 700 78px Georgia, serif', '500 74px Futura, "Trebuchet MS", Arial, sans-serif'];
+
+function makeSignAtlas(): THREE.Texture {
+  if (typeof document === 'undefined') {
+    const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); t.needsUpdate = true; return t;
+  }
+  const cw = 512, ch = 128;
+  const cv = document.createElement('canvas'); cv.width = cw * 4; cv.height = ch * 8;
+  const c = cv.getContext('2d')!;
+  c.fillStyle = '#000'; c.fillRect(0, 0, cv.width, cv.height);
+  c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  SIGN_NAMES.forEach((name, i) => {
+    const x = (i % 4) * cw, y = Math.floor(i / 4) * ch;
+    c.font = SIGN_FONTS[i % SIGN_FONTS.length];
+    const w = c.measureText(name).width;
+    c.save(); c.translate(x + cw / 2, y + ch / 2 + 4);
+    const k = Math.min(1, (cw - 44) / w); c.scale(k, Math.max(k, 0.8));
+    c.fillText(name, 0, 0); c.restore();
+  });
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.NoColorSpace; t.anisotropy = 8; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter;
+  return t;
+}
+
+export const facadeUniforms = { uPalette: { value: null as THREE.Texture | null }, uStreetGlow: { value: 1 }, uSignAtlas: { value: null as THREE.Texture | null } };
 
 function makeFacade(instanced: boolean): THREE.MeshStandardMaterial {
   const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 });
+  facadeUniforms.uSignAtlas.value ??= makeSignAtlas();
   extendMaterial(m, {
     key: instanced ? 'facade-inst' : 'facade',
-    uniforms: { uPalette: facadeUniforms.uPalette, uWindowLight: U.uWindowLight, uDetail: U.uDetail, uStreetGlow: facadeUniforms.uStreetGlow },
+    uniforms: { uPalette: facadeUniforms.uPalette, uWindowLight: U.uWindowLight, uDetail: U.uDetail, uStreetGlow: facadeUniforms.uStreetGlow, uSignAtlas: facadeUniforms.uSignAtlas },
     vPars: V_PARS, vMain: V_MAIN, fPars: F_PARS, fSurface: F_SURFACE,
     defines: instanced ? { FORGE_INSTANCED: 1 } : {},
   });

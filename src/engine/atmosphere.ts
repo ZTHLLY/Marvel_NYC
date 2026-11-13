@@ -37,10 +37,10 @@ const KEYS: Key[] = [
   { el: -18, zenith: 0x04060f, horizon: 0x161a2e, glow: 0x1c1b30, sun: 0x8fa8dc, sunI: 0.12, amb: 0x2a3558, ambI: 0.2, fog: 0x141829 },
   { el: -9, zenith: 0x070d24, horizon: 0x243056, glow: 0x5a3d55, sun: 0x8fa8dc, sunI: 0.12, amb: 0x2e3d68, ambI: 0.3, fog: 0x1c2440 },
   { el: -4.5, zenith: 0x0f2150, horizon: 0x46578c, glow: 0xd97b4e, sun: 0x9db4e0, sunI: 0.12, amb: 0x3f5590, ambI: 0.62, fog: 0x35426a },
-  { el: -1, zenith: 0x21407c, horizon: 0x8a7d9a, glow: 0xff8a45, sun: 0xff6a30, sunI: 0.5, amb: 0x5f6f9c, ambI: 0.72, fog: 0x6c6c8c },
-  { el: 2.5, zenith: 0x2c5398, horizon: 0xe3a273, glow: 0xffa050, sun: 0xff9550, sunI: 3.4, amb: 0x7888ae, ambI: 0.78, fog: 0x9c93a6 },
-  { el: 8, zenith: 0x356ab2, horizon: 0xeec695, glow: 0xffc27a, sun: 0xffb872, sunI: 4.6, amb: 0x8ea3cc, ambI: 0.86, fog: 0xa9b0c2 },
-  { el: 18, zenith: 0x2f6cc0, horizon: 0xcfd6dc, glow: 0xffe2b8, sun: 0xffdcb4, sunI: 3.9, amb: 0x9db6dd, ambI: 0.95, fog: 0xc3cbd4 },
+  { el: -1, zenith: 0x1d3a78, horizon: 0x8a7d9a, glow: 0xff8a45, sun: 0xff6a30, sunI: 0.5, amb: 0x5a6ca2, ambI: 0.66, fog: 0x6c6c8c },
+  { el: 2.5, zenith: 0x244c96, horizon: 0xe3a273, glow: 0xffa050, sun: 0xff8f48, sunI: 3.6, amb: 0x6f84b8, ambI: 0.6, fog: 0x978fa8 },
+  { el: 8, zenith: 0x2a5eb0, horizon: 0xeec695, glow: 0xffc27a, sun: 0xffb066, sunI: 4.8, amb: 0x849dd2, ambI: 0.66, fog: 0xa3acc4 },
+  { el: 18, zenith: 0x2a66c0, horizon: 0xcfd6dc, glow: 0xffe2b8, sun: 0xffd9ae, sunI: 4.1, amb: 0x9bb5e0, ambI: 0.85, fog: 0xc0c9d6 },
   { el: 35, zenith: 0x2a66c0, horizon: 0xb7d0e8, glow: 0xfff1dc, sun: 0xfff0dc, sunI: 4.3, amb: 0xa8c0e6, ambI: 1.0, fog: 0xb5c8dc },
   { el: 75, zenith: 0x2560bc, horizon: 0xbdd5ec, glow: 0xfff6e8, sun: 0xfff8ee, sunI: 4.6, amb: 0xaac4ea, ambI: 1.05, fog: 0xb8cbe0 },
 ];
@@ -119,7 +119,8 @@ export function computeAtmosphere(p: Params): AtmoState {
 
   const ambUser = p.ambient * 2; // 0.5 → 1
   // skylight is blue, but bounce light off sunlit masonry is warm: keep fill light close to neutral
-  { const l = lum(hemiSky); hemiSky.lerp(new THREE.Color(l * 1.04, l, l * 0.97).lerp(lightColor.clone().multiplyScalar(l / Math.max(lum(lightColor), 0.05)), 0.3 * (1 - night)), 0.72); }
+  // (less so when the sun is low: a warm key against blue shade is what makes golden hour read)
+  { const l = lum(hemiSky); const lowSun = smoothstep(30, 6, el) * (1 - night) * (1 - overcast); hemiSky.lerp(new THREE.Color(l * 1.04, l, l * 0.97).lerp(lightColor.clone().multiplyScalar(l / Math.max(lum(lightColor), 0.05)), 0.3 * (1 - night)), lerp(0.72, 0.5, lowSun)); }
   hemiIntensity *= ambUser * 1.35;
   const envIntensity = lerp(0.4, 0.54, 1 - night) * (0.4 + 0.6 * ambUser);
 
@@ -129,7 +130,7 @@ export function computeAtmosphere(p: Params): AtmoState {
   const fogGround = 0.000022 * Math.pow(70, fd) * (1 + 1.5 * fogWeather + 0.6 * wetWeather + 0.4 * snowWeather);
   const fogScaleHeight = lerp(260, 520, fd) * (1 + 0.6 * snowWeather);
   const fogSunColor = sunGlow.clone().lerp(lightColor, 0.35).multiplyScalar(lerp(1.0, 1.25, 1 - night));
-  const fogSun = p.atmosphere * (1 - overcast * 0.85) * lerp(1, 0.35, deepNight);
+  const fogSun = p.atmosphere * 0.8 * (1 - overcast * 0.85) * lerp(1, 0.35, deepNight);
   // night fog picks up city glow
   if (night > 0) fogColor.lerp(new THREE.Color(0.075, 0.06, 0.07), night * 0.35 * (0.4 + fd));
 
@@ -165,7 +166,7 @@ void main(){
   float h = d.y;
   float sd = max(dot(d, uSunDir), 0.0);
   // base gradient
-  float g = pow(1.0 - clamp(h, 0.0, 1.0), 3.2);
+  float g = pow(1.0 - clamp(h, 0.0, 1.0), 4.6);
   vec2 sflat = normalize(uSunDir.xz + vec2(1e-5)); vec2 dflat = normalize(d.xz + vec2(1e-5));
   float sunSide = pow(0.5 + 0.5 * dot(dflat, sflat), 1.6);
   // away from the sun the horizon is a pale, cool band rather than the warm glow

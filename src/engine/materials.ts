@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { csmDefines, csmUniforms, injectCsmChunks } from './shadows';
+
+// every lit material reads the sun through the cascade-aware light chunks (see shadows.ts)
+injectCsmChunks();
 
 /**
  * Shared uniforms: every material in the world references these objects, so weather,
@@ -98,12 +102,12 @@ export interface MaterialExt {
 export function extendMaterial<T extends THREE.Material>(mat: T, ext: MaterialExt = { key: 'std' }): T {
   const anyMat = mat as any;
   anyMat.fog = false;
-  if (ext.defines) anyMat.defines = { ...(anyMat.defines || {}), ...ext.defines };
+  anyMat.defines = { ...(anyMat.defines || {}), ...csmDefines, ...(ext.defines || {}) };
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uFogColor: U.uFogColor, uFogSunColor: U.uFogSunColor, uFogParams: U.uFogParams, uSunDir: U.uSunDir,
       uSnow: U.uSnow, uWet: U.uWet, uNight: U.uNight,
-    }, ext.uniforms || {});
+    }, csmUniforms, ext.uniforms || {});
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vFogWorld;\n${ext.vPars || ''}`)
       .replace('#include <fog_vertex>', `${FOG_VERT}\n${ext.vMain || ''}`);

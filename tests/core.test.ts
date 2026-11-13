@@ -59,8 +59,8 @@ describe('parameters & presets', () => {
       expect(BOOKMARKS.some((b) => b.id === p.bookmark), p.id).toBe(true);
       for (const k of ['seed', 'heightScale', 'density', 'quality', 'renderDistance']) expect(k in p.params, `${p.id}.${k}`).toBe(false);
     }
-    for (const id of ['golden', 'avengers', 'blue', 'midnight', 'rain', 'snow', 'rooftop', 'sanctum']) expect(SCENE_PRESETS.some((p) => p.id === id), id).toBe(true);
-    for (const id of ['skyline', 'avengers', 'rooftop', 'sanctum', 'midtown-night', 'riverfront', 'times-square', 'snow']) expect(BOOKMARKS.some((b) => b.id === id), id).toBe(true);
+    for (const id of ['golden', 'avengers', 'blue', 'midnight', 'rain', 'snow', 'rooftop', 'sanctum', 'street', 'sunset', 'fog', 'overcast']) expect(SCENE_PRESETS.some((p) => p.id === id), id).toBe(true);
+    for (const id of ['golden-midtown', 'street', 'skyline', 'avengers', 'rooftop', 'sanctum', 'midtown-night', 'riverfront', 'times-square', 'snow']) expect(BOOKMARKS.some((b) => b.id === id), id).toBe(true);
   });
   it('sanitises imported settings', () => {
     const p = sanitizeParams({ exposure: 1.7, seed: 'evil', fov: NaN, bogus: 1, weather: 'rain' });
