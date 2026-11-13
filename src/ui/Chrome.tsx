@@ -41,7 +41,7 @@ export function TopBar() {
     <header className="topbar">
       <div className="wordmark ui-hit">
         <span className="wm-mark" aria-hidden="true" />
-        <span className="wm-text"><b>MARVEL</b><em>New York</em></span>
+        <span className="wm-text"><b>NYC</b><em>in Marvel Universe</em></span>
       </div>
 
       <div className="seg seg-top ui-hit" role="radiogroup" aria-label="Camera mode">

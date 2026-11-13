@@ -17,7 +17,7 @@ export function LoadingScreen() {
   return (
     <div className={'loading' + (loading.done ? ' done' : '')} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Loading">
       <div className="loading-inner">
-        <div className="ld-eyebrow">Marvel</div>
+        <div className="ld-eyebrow">Marvel Universe</div>
         <h1 className="ld-title">New York</h1>
         <div className="ld-rule"><i /></div>
         <div className="ld-sub">Cinematic City Forge</div>
@@ -38,7 +38,7 @@ export function CaptureModal() {
         <div className="modal-img"><img src={previewUrl} alt={previewName || 'Captured wallpaper'} /></div>
         <div className="modal-bar">
           <div className="modal-meta"><b>{previewName}</b><span className="mono">{previewSize}</span></div>
-          <a className="btn btn-primary" href={previewUrl} download={previewName || 'marvel-new-york.png'}><IconDownload /> Download</a>
+          <a className="btn btn-primary" href={previewUrl} download={previewName || 'nyc-in-marvel-universe.png'}><IconDownload /> Download</a>
           <button type="button" className="btn btn-ghost" autoFocus onClick={closePreview}><IconClose /> Close</button>
         </div>
       </div>

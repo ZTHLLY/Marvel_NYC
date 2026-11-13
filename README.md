@@ -1,6 +1,6 @@
-# Marvel: New York — Cinematic City Forge
+# NYC in Marvel Universe
 
-An interactive, cinematic 3D portrait of a Marvel-flavoured New York. Fly over a Manhattan built from the city's real
+An unofficial, fan-made, interactive 3D portrait of a Marvel-flavoured New York. Fly over a Manhattan built from the city's real
 building footprints, restyle the light and weather, walk down to street level past the Sanctum Sanctorum, and export
 wallpapers up to 8K. **The city itself is the star: there are no character figures** (they were removed in Phase 2).
 
