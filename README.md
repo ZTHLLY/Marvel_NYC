@@ -4,6 +4,11 @@ An interactive, cinematic 3D portrait of a Marvel-flavoured New York. Fly over a
 building footprints, restyle the light and weather, walk down to street level past the Sanctum Sanctorum, and export
 wallpapers up to 8K. **The city itself is the star: there are no character figures** (they were removed in Phase 2).
 
+> **Background.** This is a weekend experiment, not a serious engineering project. I built it to see what Claude's
+> new model, Fable 5.2, can do, both technically and in terms of visual taste. All of the code was written by the model,
+> and I mostly just described what I wanted and looked at the results. Don't expect carefully designed architecture,
+> optimisation or deep technical ideas here. It's a toy made for fun, shared as-is and not actively maintained.
+
 ![Golden hour over Midtown](docs/img/golden-midtown.jpg)
 
 | | | |
@@ -61,27 +66,7 @@ Export sizes: 1080p, 1440p, 4K, 3440×1440, 5120×2160, 5K, and 8K (experimental
 Settings saved by Phase 1 still load: the removed character options are dropped silently and the old
 "Spider-Man Rooftop" ids resolve to the Rooftop Panorama.
 
-## What is real and what is procedural
-
-* **Real** (NYC Open Data, baked by `scripts/fetch-geo.mjs`): 49,581 building footprints with surveyed roof heights and
-  construction years, the shoreline of all five boroughs, 26,384 street centre-line segments with kerb widths, 557 parks.
-* **Procedural** (no third-party textures or models): architecture per building (district-, era- and height-aware families,
-  setbacks, crowns), the façade shader (bump-mapped brick / ashlar / panels, weathering, lintels, sills, cornice friezes,
-  sash windows, blinds, interior-mapped rooms and shops, lettered shop signs), rooftop plant, fire escapes, stoops, awnings,
-  sidewalk sheds, raised sidewalks and kerbs, road markings, cars, trees, street furniture, the New Jersey bank and far
-  skyline, weather, sky and lighting.
-* **Bespoke**: Avengers Tower, Sanctum Sanctorum and its coffee shop, Baxter Building, Daily Bugle, the rooftop-panorama
-  tower, the Empire State and Chrysler buildings, the four East River bridges.
-
 See `docs/progress.md` (status, verification, limitations, next steps), `docs/architecture.md` and `docs/asset-sources.md`.
-
-## Honest limitations
-
-* This is stylised architectural visualisation, not photogrammetry: cars are recognisable but simple, tree leaves are
-  alpha-cut cards that read as flakes within ~10 m, and far-field / outer-borough buildings are still plain boxes.
-* Glass reflects one local environment probe plus a ground-plane mirror — no screen-space or ray-traced reflections.
-* Phase 2 costs roughly 1.5–1.8× the Phase 1 frame time while the camera is moving (see `docs/progress.md`).
-* New Jersey's shoreline and street grid are hand-traced / synthetic; terrain is flat.
 
 This is an unofficial fan project. Marvel, Avengers and related names are trademarks of Marvel Characters, Inc.;
 no Marvel artwork, models, logos or footage are included.

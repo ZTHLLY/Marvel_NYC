@@ -10,7 +10,7 @@
 | Oswald, Inter (via `@fontsource`) | Fontsource | SIL Open Font License 1.1 | UI typography |
 | three.js, postprocessing, n8ao, zustand, React, Vite, earcut | npm | MIT / ISC (n8ao: CC0) | Code |
 
-Reference photographs in `reference/` (Unsplash / Pexels) were studied for palette, density and lighting only; none is used as a texture.
+A few Unsplash / Pexels photographs were studied for palette, density and lighting only; they are not used as textures and are not included in the repository.
 
 **Phase 2:** the Mixamo X Bot model was deleted with the character system, so no character asset ships any more. No third-party textures, HDRIs or models were added in Phase 2 — every material, sign, car, tree and prop is generated in code (Poly Haven / ambientCG were considered and not needed).
 

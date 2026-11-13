@@ -5,3 +5,4 @@ dist
 *.log
 shots/
 data-cache/
+reference/
