@@ -1,7 +1,7 @@
 # Progress & continuation notes
 
 _Last updated: 2026-11-13 (end of Phase 2)._ A replacement engineer/agent should read this file, then `docs/architecture.md`.
-The brief for each phase is in `phase1.md` / `phase2.md` at the repository root (untracked, owned by the user).
+The brief for each phase is kept privately by the author and is not part of the repository.
 
 ## Phase 2 — visual fidelity overhaul (environment art pass)
 
