@@ -283,9 +283,11 @@ const F_SURFACE = /* glsl */ `
       vec2 cid; vec3 d = bondCell(uvm, vec2(0.215, 0.073), cid);
       float mortar = 1.0 - smoothstep(0.0035, 0.0035 + max(pix, 0.003), min(d.x, d.y));
       float bv = h21(cid + seed * 13.0), bv2 = h21(cid * 1.7 + 3.3 + seed);
-      vec3 brick = wallCol * (0.76 + 0.46 * bv);
-      brick = mix(brick, brick * vec3(0.6, 0.58, 0.64), step(0.9, bv2));           // burnt headers
-      brick = mix(brick, brick * vec3(1.2, 1.12, 1.0), step(bv2, 0.07));           // pale replacements
+      // brick-to-brick tone fades out before single bricks shrink to a few pixels (otherwise it reads as noise)
+      float fineB = 1.0 - smoothstep(0.005, 0.02, pix);
+      vec3 brick = wallCol * mix(1.0, 0.76 + 0.46 * bv, fineB);
+      brick = mix(brick, brick * vec3(0.6, 0.58, 0.64), step(0.9, bv2) * fineB);   // burnt headers
+      brick = mix(brick, brick * vec3(1.2, 1.12, 1.0), step(bv2, 0.07) * fineB);   // pale replacements
       brick *= 0.92 + 0.16 * vnoise(uvm * 41.0);
       vec3 mortarCol = mix(vec3(0.46, 0.44, 0.4), vS1.rgb * 0.5, 0.3 + 0.5 * bSeed) * (0.85 + 0.3 * n1);
       wallCol = mix(wallCol, mix(brick, mortarCol, mortar), fine);
@@ -523,6 +525,7 @@ const F_SURFACE = /* glsl */ `
           vec2 mc = floor(sh);
           vec3 merch = mix(vec3(0.42, 0.4, 0.37), vec3(h21(mc + id * 3.0), h21(mc + id * 3.0 + 3.1), h21(mc + id * 3.0 + 7.7)), 0.3) * (0.6 + 0.6 * h21(mc * 1.3 + 2.0));
           float shelf = step(0.16, fract(sh.y)) * step(0.08, fract(sh.x)) * step(hp.y, rsz.y * 0.6);
+          merch = mix(vec3(0.4, 0.38, 0.35) * (0.7 + 0.5 * h21(mc * 1.3 + 2.0)), merch, step(0.7, h21(mc * 2.3 + 5.0)));   // mostly neutral stock, a few bright packs
           room *= mix(vec3(0.85), merch * (0.35 + 0.65 * shelf), (back + side) * 0.8);
           float strip = cf * step(0.0, rd.y) * step(0.72, fract(hp.x * 0.55 + 0.2)) * step(0.15, fract(hp.z * 0.33));
           room += vec3(1.6) * strip;
@@ -635,7 +638,7 @@ const F_SURFACE = /* glsl */ `
   float upf = smoothstep(0.5, 0.85, wN.y);
   float sNoise = vnoise(vFogWorld.xz * 0.6) * 0.6 + vnoise(vFogWorld.xz * 4.0) * 0.4;
   float snow = upf * smoothstep(0.0, 0.5, uSnow * 1.25 - sNoise * 0.35 * (1.0 - uSnow));
-  snow = max(snow, (1.0 - upf) * uSnow * 0.22 * smoothstep(0.35, 0.8, vnoise(uvm * vec2(0.5, 0.12) + seed)) * step(surf, 0.5));
+  snow = max(snow, (1.0 - upf) * uSnow * 0.22 * smoothstep(0.35, 0.8, vnoise(uvm * vec2(0.5, 0.12) + seed)) * step(surf, 0.5) * (1.0 - metal));
   albedo = mix(albedo, vec3(0.84, 0.88, 0.95), snow);
   rough = mix(rough, 0.88, snow); metal *= 1.0 - snow;
   float wet = uWet * (1.0 - snow) * (0.25 + 0.75 * upf);

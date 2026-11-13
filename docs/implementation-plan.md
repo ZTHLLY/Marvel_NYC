@@ -11,4 +11,11 @@
 9. **Photography** — photo mode, guides, aspect masks, HQ capture to 8K.
 10. **Refinement** — screenshot-driven passes (see `docs/progress.md`).
 
+## Phase 2 (as executed)
+
+1. **P0** — remove the three character figures and their pipeline; keep the locations; migrate old settings.
+2. **P1** — façade shader overhaul, rooftop plant, sidewalk sheds; raised sidewalks, roads, cars, trees, street furniture.
+3. **P2** — cascaded shadows, golden-hour / night light, landmark rebuilds (Sanctum, Avengers Tower, ESB, Chrysler, rooftop tower, Brooklyn Bridge).
+4. **P3** — bookmarks and presets re-composed, before/after frames, performance comparison, documentation.
+
 Next steps live in `docs/progress.md`.

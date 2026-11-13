@@ -72,10 +72,11 @@ export async function buildWorldExtras(engine: Engine, data: CityData, ground: G
 
   // ---- compose the location bookmarks from the actual scene anchors
   {
-    const p = rooftop.perch.pos, fwd = new THREE.Vector3(Math.sin(rooftop.perch.yaw), 0, Math.cos(rooftop.perch.yaw));
-    const right = new THREE.Vector3(fwd.z, 0, -fwd.x);
-    setBookmark('rooftop', p.clone().addScaledVector(fwd, -3.7).addScaledVector(right, 2.2).add(new THREE.Vector3(0, 1.1, 0)), p.clone().addScaledVector(fwd, 40).addScaledVector(right, -13).add(new THREE.Vector3(0, -2.5, 0)), 44);
-    setBookmark('sanctum', sanctum.toWorld(19.2, 1.3, 14.7), sanctum.toWorld(19.2 - 16.6, 1.3 + 4.6, 14.7 - 10.8), 46);
+    // just off the downtown corner of the roof: water tank and parapet in front, the Empire State Building beyond
+    const rs = SITES.rooftop;
+    setBookmark('rooftop', new THREE.Vector3(rs.x - 12, 195.5, rs.z + 11), new THREE.Vector3(rs.x + 100, 215, rs.z - 341), 55);
+    // from the middle of Bleecker Street, clear of the kerb-side trees: the whole house front and the great window
+    setBookmark('sanctum', sanctum.toWorld(18, 1.65, 11.3), sanctum.toWorld(2.5, 8.8, 0), 58);
     // from the east at dusk: the blade-fin and landing deck in profile against the sunset, Chrysler alongside
     const s = SITES.avengers;
     setBookmark('avengers', new THREE.Vector3(s.x + 468, 255, s.z + 406), new THREE.Vector3(s.x - 70, 284, s.z - 10), 34);

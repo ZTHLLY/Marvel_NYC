@@ -3,6 +3,8 @@ import earcut from 'earcut';
 import { CityData, ll, GRID_ANGLE, pointInPoly, PolyRec } from './geo';
 import { extendMaterial, U, GLSL_NOISE } from '../engine/materials';
 import { hash2, mulberry32 } from '../util/rng';
+import { laneKind, roadDir, streetNet } from './streets';
+import { buildSidewalks, sidewalkMaterial } from './sidewalks';
 
 /** Hand-traced New Jersey bank of the Hudson (south → north). NYC Open Data stops at the state line. */
 const NJ_SHORE: [number, number][] = [
@@ -109,67 +111,204 @@ const GROUND_SURFACE = /* glsl */ `
 }
 `;
 
+/** anti-aliased helpers for painted markings and cast-iron details */
+const ROAD_PARS = /* glsl */ `
+float aaBox(float d, float hw, float fw){ return 1.0 - smoothstep(hw - fw, hw + fw, abs(d)); }
+// periodic bars of width w every p metres, faded to their mean coverage once they get sub-pixel
+float aaBars(float c, float p, float w, float fw){
+  float d = (fract(c / p) - 0.5) * p;
+  return mix(aaBox(d, w * 0.5, fw), w / p, smoothstep(0.2, 0.6, fw / p));
+}
+`;
+
 const ROAD_SURFACE = /* glsl */ `
 {
   vec2 wp = vFogWorld.xz;
   float halfW = vRoad.x, len = vRoad.y;
   float x = vRUv.x, v = vRUv.y;
-  float dist = length(cameraPosition - vFogWorld);
-  float near = 1.0 - smoothstep(120.0, 420.0, dist);
-  float n = vnoise(wp * 0.35) * 0.55 + vnoise(wp * 2.9) * 0.45;
-  vec3 col = vec3(0.058, 0.06, 0.064) * (0.75 + 0.6 * n);
-  col = mix(col, col * 1.35, smoothstep(0.55, 0.8, vnoise(wp * 0.06 + 11.0)) * 0.6);   // resurfaced patches
+  float dir = vRoad2.x, seed = vRoad2.y, kind = vRoad2.z;
+  float fw = max(fwidth(x), fwidth(v)) + 1e-4;              // metres per pixel
+  float detail = 1.0 - smoothstep(0.02, 0.08, fw);
+  float fine = 1.0 - smoothstep(0.004, 0.02, fw);
+  float ax = abs(x);
   float eS = vRoad.z < 0.0 ? 1000.0 : v - vRoad.z;
   float eE = vRoad.w < 0.0 ? 1000.0 : (len - vRoad.w) - v;
   float e = min(eS, eE);
-  float paint = 0.0;
-  float ax = abs(x);
-  if (e > 0.0) {
-    float lanes = max(1.0, floor((halfW * 2.0 - 4.2) / 3.3 + 0.5));
-    float drive = halfW - 2.2;
-    if (lanes > 1.5 && ax < drive) {
-      float lw = (drive * 2.0) / lanes;
-      float lx = fract((x + drive) / lw);
-      float line = 1.0 - smoothstep(0.06, 0.1, min(lx, 1.0 - lx) * lw);
-      float dash = step(fract(v / 9.0), 0.34);
-      float edge = step(lw * 0.5, x + drive) * step(x + drive, drive * 2.0 - lw * 0.5);
-      paint = max(paint, line * dash * edge * step(7.0, e));
-    }
-    // zebra crossing & stop bar
-    float zebra = step(0.9, e) * step(e, 4.2) * step(ax, halfW - 0.7) * step(fract(x / 1.25), 0.5);
-    float stopb = step(5.2, e) * step(e, 5.65) * step(ax, halfW - 0.4) * step(eS < eE ? x : -x, 0.0) * step(4.0, halfW);
-    paint = max(paint, max(zebra, stopb) * step(3.4, halfW));
+  float n = vnoise(wp * 0.35) * 0.55 + vnoise(wp * 2.9) * 0.45;
+
+  // ---- asphalt: aggregate grain, bleached older surface, fresh black overlays
+  vec3 col = vec3(0.075, 0.076, 0.079) * (0.82 + 0.36 * n);
+  float agg = h21(floor(wp * 38.0)) * 0.6 + h21(floor(wp * 13.0) + 3.0) * 0.4;
+  col *= 0.86 + 0.28 * mix(0.5, agg, fine);
+  float age = smoothstep(0.35, 0.8, fbm2(wp * 0.018 + seed));
+  col = mix(col, col * 1.55 + 0.012, age * 0.7);
+  float rough = 0.9;
+
+  // lanes (kept in step with the traffic props)
+  float drive = halfW - 2.2;
+  float lanes = max(1.0, floor((halfW * 2.0 - 4.4) / 3.3 + 0.5));
+  if (dir == 0.0) lanes = max(2.0, 2.0 * floor(lanes * 0.5 + 0.5));
+  float lw = (drive * 2.0) / lanes;
+  float lx = (fract((x + drive) / lw) - 0.5) * lw;            // offset from the lane centre
+  float inLane = step(ax, drive) * step(1.2, drive);
+  // wheel paths: polished, slightly lighter, a little sunken; an oil-dark strip between them
+  float wheel = (aaBox(abs(lx) - 0.85, 0.32, 0.25)) * inLane;
+  float oil = aaBox(lx, 0.38, 0.3) * inLane;
+  col *= 1.0 + 0.1 * wheel;
+  col *= 1.0 - 0.22 * oil * (0.6 + 0.4 * vnoise(wp * 1.7 + 2.0));
+  rough -= 0.12 * wheel;
+  // drip stains under parked cars
+  float parkZ = step(drive, ax) * step(ax, halfW - 0.3);
+  float drip = smoothstep(0.55, 0.85, vnoise(vec2(v * 0.9, ax * 2.0) + seed)) * parkZ;
+  col *= 1.0 - 0.3 * drip;
+
+  // utility-cut patches: rectangles of newer (darker) or older (greyer) asphalt with sealed seams
+  vec2 pc = vec2(floor(v / 8.0), floor((x + halfW) / 3.1));
+  float ph = h21(pc + seed * 1.37);
+  float patchM = 0.0, seam = 0.0;
+  if (ph < 0.14) {
+    vec2 pf = vec2(fract(v / 8.0) * 8.0, fract((x + halfW) / 3.1) * 3.1);
+    vec2 c0 = vec2(1.0 + 3.0 * h21(pc + 1.0), 0.3 + 0.8 * h21(pc + 2.0));
+    vec2 sz = vec2(2.0 + 3.0 * h21(pc + 3.0), 1.0 + 1.0 * h21(pc + 4.0));
+    vec2 q = abs(pf - c0 - sz * 0.5) - sz * 0.5;
+    float d = max(q.x, q.y);
+    patchM = 1.0 - smoothstep(-fw, fw, d);
+    seam = (1.0 - smoothstep(0.0, 0.04 + fw, abs(d))) * detail;
   }
-  paint *= near * (0.55 + 0.45 * vnoise(wp * 3.7));
-  col = mix(col, vec3(0.62, 0.62, 0.58), paint);
-  // gutter / curb edge
-  float curb = smoothstep(halfW - 0.32, halfW - 0.2, ax);
-  col = mix(col, vec3(0.3, 0.3, 0.29) * (0.8 + 0.3 * n), curb);
-  // snow with darker wheel tracks
-  float track = smoothstep(0.25, 0.5, abs(fract(x / 3.3) - 0.5)) ;
-  float snow = smoothstep(0.05, 0.6, uSnow * (0.55 + 0.75 * track) + (n - 0.5) * 0.25 * uSnow);
-  col = mix(col, vec3(0.8, 0.84, 0.9) * (0.82 + 0.18 * n), snow);
+  // long trench repairs across the roadway
+  float tc = floor(v / 47.0);
+  float th = h21(vec2(tc, seed + 9.0));
+  if (th < 0.25) {
+    float tv = fract(v / 47.0) * 47.0 - 10.0 - 20.0 * th;
+    float inX = step(-halfW + halfW * h21(vec2(tc, 3.0)), x);
+    float tr = (1.0 - smoothstep(0.45 - fw, 0.45 + fw, abs(tv))) * inX;
+    seam = max(seam, (1.0 - smoothstep(0.0, 0.04 + fw, abs(abs(tv) - 0.45))) * detail * inX);
+    patchM = max(patchM, tr);
+  }
+  col = mix(col, ph < 0.07 ? vec3(0.05, 0.05, 0.053) : col * 1.3 + 0.01, patchM);
+  // tar snakes: glossy black crack sealant, meandering plus along the longitudinal joints
+  float tv0 = vnoise(wp * 0.21 + seed * 3.1) - 0.5;
+  float tv1 = vnoise(wp * 0.5 + 40.0 + seed) - 0.5;
+  float tfw0 = fwidth(tv0) + 1e-4, tfw1 = fwidth(tv1) + 1e-4;
+  float tar = (1.0 - smoothstep(0.0035, 0.0035 + tfw0 * 1.2, abs(tv0))) * smoothstep(0.45, 0.6, vnoise(wp * 0.045 + 5.0));
+  tar = max(tar, (1.0 - smoothstep(0.003, 0.003 + tfw1 * 1.2, abs(tv1))) * smoothstep(0.55, 0.7, vnoise(wp * 0.06 + 1.0)));
+  float jl = abs(abs(lx) - lw * 0.5 + 0.12 + 0.08 * (vnoise(vec2(v * 0.4, x)) - 0.5));
+  tar = max(tar, (1.0 - smoothstep(0.02, 0.02 + fw, jl)) * smoothstep(0.5, 0.65, vnoise(vec2(v * 0.03, floor((x + drive) / lw)) + seed)) * inLane);
+  tar = max(tar, seam);
+  tar *= detail;
+  col = mix(col, vec3(0.022, 0.022, 0.024), tar * 0.85);
+  rough = mix(rough, 0.42, tar);
+
+  // ---- paint
+  float paint = 0.0, yellow = 0.0;
+  float atJ = step(e, 999.0);
+  if (e > 0.0) {
+    // lane dashes (10 ft dash, 30 ft gap)
+    if (lanes > 1.5 && ax < drive && e > 7.0) {
+      float bnd = (fract((x + drive) / lw + 0.5) - 0.5) * lw;   // distance to the nearest lane boundary
+      float onB = step(lw * 0.5, x + drive) * step(x + drive, drive * 2.0 - lw * 0.5);
+      float centre = dir == 0.0 ? 1.0 - step(0.3, ax) : 0.0;
+      paint = max(paint, aaBox(bnd, 0.06, fw) * aaBars(v, 12.0, 3.0, fw) * onB * (1.0 - centre));
+    }
+    // double yellow on two-way streets
+    if (dir == 0.0 && e > 1.0) yellow = max(aaBox(x - 0.13, 0.055, fw), aaBox(x + 0.13, 0.055, fw));
+    // high-visibility crosswalk bars, parallel to traffic
+    float xw = step(1.0, e) * step(e, 4.4) * atJ * step(ax, halfW - 0.5) * step(3.0, halfW);
+    paint = max(paint, xw * aaBars(x + halfW, 1.2, 0.6, fw) * aaBox(e - 2.7, 1.7, fw));
+    // stop bar on the approach side
+    float atEnd = step(eE, eS);
+    float appr = dir > 0.5 ? atEnd : dir < -0.5 ? 1.0 - atEnd : (atEnd > 0.5 ? step(0.0, x) : step(x, 0.0));
+    paint = max(paint, atJ * appr * aaBox(e - 5.4, 0.3, fw) * step(ax, halfW - 0.4) * step(3.4, halfW));
+    // kerbside lanes
+    if (kind > 0.5) {
+      float sideX = kind < 1.5 ? x : -x;
+      float zone = step(drive - 0.2, sideX) * step(sideX, halfW - 0.4) * step(5.0, e);
+      vec3 lane = kind < 1.5 ? vec3(0.32, 0.075, 0.05) : vec3(0.09, 0.26, 0.13);
+      col = mix(col, lane * (0.75 + 0.35 * n) * (1.0 + 0.15 * age), zone * (0.75 + 0.25 * smoothstep(0.2, 0.6, vnoise(wp * 1.4))));
+      paint = max(paint, aaBox(sideX - drive + 0.2, 0.08, fw) * step(5.0, e));
+    }
+  }
+  // wear: paint scuffed off in the wheel paths and by age
+  float wear = smoothstep(0.2, 0.62, vnoise(wp * 3.3) * 0.55 + vnoise(wp * 0.7) * 0.45 + 0.2 - 0.25 * wheel - 0.15 * age);
+  wear = mix(0.75, wear, detail);
+  paint *= wear; yellow *= wear;
+  col = mix(col, vec3(0.6, 0.6, 0.57), paint);
+  col = mix(col, vec3(0.62, 0.44, 0.07), yellow);
+  rough = mix(rough, 0.65, max(paint, yellow));
+
+  // ---- cast iron: manholes in the lanes, storm drains at the kerb, utility plates
+  float iron = 0.0; vec3 ironC = vec3(0.0);
+  {
+    float mc = floor(v / 23.0);
+    float mh = h21(vec2(mc, seed + 21.0));
+    if (mh < 0.55 && drive > 1.2) {
+      vec2 mp = vec2(mc * 23.0 + 4.0 + 15.0 * h21(vec2(mc, 5.0)), -drive + 2.0 * drive * h21(vec2(mc, 6.0 + seed)));
+      vec2 dq = vec2(v, x) - mp;
+      float r = length(dq);
+      float disc = 1.0 - smoothstep(0.34 - fw, 0.34 + fw, r);
+      float ring = 1.0 - smoothstep(0.0, 0.02 + fw, abs(r - 0.3));
+      float hatch = mix(0.5, step(0.5, fract(dq.x * 9.0)) * step(0.5, fract(dq.y * 9.0)), fine);
+      iron = max(iron, disc);
+      ironC = vec3(0.075, 0.07, 0.065) * (0.75 + 0.35 * hatch) * (1.0 - 0.4 * ring) + vec3(0.06, 0.03, 0.01) * vnoise(dq * 6.0);
+    }
+    // storm drain grates just before each corner
+    if (atJ > 0.5 && halfW > 3.0) {
+      vec2 dq = vec2(e - 7.2, ax - (halfW - 0.42));
+      float g = aaBox(dq.x, 0.55, fw) * aaBox(dq.y, 0.3, fw);
+      float bars = mix(0.45, aaBars(e, 0.09, 0.045, fw), fine);
+      if (g > iron) { iron = g; ironC = mix(vec3(0.01), vec3(0.12, 0.1, 0.085), bars); }
+    }
+    // small rectangular utility plates
+    float uc = floor(v / 31.0);
+    if (h21(vec2(uc, seed + 33.0)) < 0.35) {
+      vec2 up = vec2(uc * 31.0 + 6.0 + 18.0 * h21(vec2(uc, 7.0)), -halfW + 1.2 + (halfW * 2.0 - 2.4) * h21(vec2(uc, 8.0)));
+      vec2 dq = vec2(v, x) - up;
+      float g = aaBox(dq.x, 0.45, fw) * aaBox(dq.y, 0.3, fw);
+      if (g > iron) { iron = g; ironC = vec3(0.11, 0.1, 0.09) * (0.8 + 0.4 * mix(0.5, step(0.5, fract((dq.x + dq.y) * 8.0)), fine)); }
+    }
+  }
+  iron *= 1.0 - smoothstep(0.03, 0.12, fw);
+  col = mix(col, ironC, iron);
+  rough = mix(rough, 0.45, iron);
+
+  // gutter grime against the kerb
+  float gutter = smoothstep(halfW - 0.9, halfW - 0.05, ax);
+  col *= 1.0 - 0.25 * gutter * (0.5 + 0.5 * vnoise(wp * 2.0));
+
+  // ---- snow: ploughed tracks of grey slush, banks against the kerb
+  float track = clamp(wheel + oil * 0.5, 0.0, 1.0) * inLane;
+  float bank = smoothstep(halfW - 2.2, halfW - 0.3, ax);
+  float sAmt = uSnow * (0.5 + 0.7 * bank - 0.45 * track) + (n - 0.5) * 0.3 * uSnow;
+  float snow = smoothstep(0.08, 0.55, sAmt);
+  vec3 slush = vec3(0.3, 0.29, 0.27) * (0.8 + 0.4 * n);
+  col = mix(col, slush, smoothstep(0.1, 0.4, uSnow) * track * 0.6);
+  col = mix(col, vec3(0.8, 0.83, 0.88) * (0.85 + 0.15 * n), snow);
+  rough = mix(rough, 0.85, snow);
+
+  // ---- rain: darker asphalt, puddles collect in the ruts, the gutters and sunken patches; not a uniform mirror
   float wet = uWet * (1.0 - snow);
-  float puddle = smoothstep(0.45, 0.7, vnoise(wp * 0.27 + 3.0) + 0.25 * curb);
-  col *= 1.0 - 0.45 * wet * (1.0 - paint);
+  float low = vnoise(wp * 0.27 + 3.0) * 0.6 + vnoise(wp * 1.1 + 8.0) * 0.4;
+  float puddle = smoothstep(0.56, 0.74, low + 0.24 * gutter + 0.12 * wheel + 0.1 * patchM - 0.1 * paint);
+  col *= 1.0 - wet * (0.5 - 0.25 * paint - 0.2 * iron);
   diffuseColor.rgb = col;
-  roughnessFactor = mix(mix(0.88, mix(0.3, 0.05, puddle), wet), 0.85, snow);
-  metalnessFactor = 0.0;
-  // sodium / LED street-lamp pools alternate along both kerbs
-  float seg = v / 31.0; float ph = fract(seg) - 0.5;
+  roughnessFactor = mix(rough, mix(0.36 - 0.12 * wheel, 0.035, puddle), wet);
+  metalnessFactor = 0.25 * iron * (1.0 - snow);
+
+  // ---- sodium / LED street-lamp pools alternate along both kerbs
+  float seg = v / 31.0; float lph = fract(seg) - 0.5;
   float side = mod(floor(seg), 2.0) * 2.0 - 1.0;
   float px = (x - side * halfW * 0.8) / (halfW * 0.9 + 2.0);
-  float pool = exp(-(ph * ph) * 31.0 * 31.0 / 150.0) * exp(-px * px);
+  float pool = exp(-(lph * lph) * 31.0 * 31.0 / 150.0) * exp(-px * px);
   vec3 lampC = mix(vec3(1.0, 0.62, 0.3), vec3(0.85, 0.92, 1.0), step(0.6, h21(vec2(floor(len), 2.0))));
-  totalEmissiveRadiance += (col + 0.012) * lampC * uNight * (0.35 + 2.4 * pool);
+  totalEmissiveRadiance += (min(col, vec3(0.7)) + 0.012) * lampC * uNight * (0.35 + 2.4 * pool);
   #ifdef FORGE_REFL
   if (uReflStrength > 0.001) {
     vec3 Vv = normalize(cameraPosition - vFogWorld);
     float fres = 0.05 + 0.95 * pow(1.0 - max(Vv.y, 0.0), 3.5);
-    // fine asphalt grain breaks the mirror into long vertical smears rather than a flooded-street ripple
-    vec2 dn = (vec2(vnoise(wp * 14.0), vnoise(wp * 14.0 + 31.0)) - 0.5) * (1.0 - 0.8 * puddle) + (vec2(vnoise(wp * 55.0), vnoise(wp * 55.0 + 5.0)) - 0.5) * 0.6;
+    // fine asphalt grain breaks the mirror into long vertical smears; puddles stay sharp
+    vec2 dn = (vec2(vnoise(wp * 14.0), vnoise(wp * 14.0 + 31.0)) - 0.5) * (1.0 - 0.85 * puddle) + (vec2(vnoise(wp * 55.0), vnoise(wp * 55.0 + 5.0)) - 0.5) * 0.6 * (1.0 - puddle);
     vec3 rf = planarRefl(vFogWorld, dn * vec2(0.004, 0.028));
-    totalEmissiveRadiance += rf * fres * wet * uReflStrength * (0.16 + 0.84 * puddle);
+    totalEmissiveRadiance += min(rf, vec3(24.0)) * fres * wet * uReflStrength * (0.1 + 0.9 * puddle);
   }
   #endif
 }
@@ -227,7 +366,7 @@ void main(){
   vec3 N = normalize(vec3(-(hx - h0) / eps * amp * 3.0, 1.0, -(hz - h0) / eps * amp * 3.0));
   vec3 R = reflect(-V, N); R.y = abs(R.y);
   float fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
-  vec3 sky = mix(uSkyHorizon, uSkyZenith, pow(clamp(R.y, 0.0, 1.0), 0.45));
+  vec3 sky = mix(uSkyHorizon, uSkyZenith, pow(clamp(R.y, 0.0, 1.0), 0.8));
   float sd = max(dot(R, uSunDir), 0.0);
   sky += uFogSunColor * pow(sd, 8.0) * 0.5 * uFogParams.w;
   vec3 refl = sky;
@@ -237,8 +376,11 @@ void main(){
     vec3 pr = texture2DProj(uReflTex, rc).rgb;
     refl = mix(pr, sky, smoothstep(0.0, 0.5, length(N.xz) * 1.6));
   }
-  vec3 deep = uSkyZenith * 0.16 + vec3(0.004, 0.014, 0.018) * (1.0 - uNight * 0.85);
-  deep = mix(deep, vec3(0.05, 0.065, 0.06) * (1.0 - uNight * 0.8), 0.35);     // estuary silt
+  // estuary water: the reflected sky loses some saturation (micro-roughness, silt), the body is olive-grey
+  float rl = dot(refl, vec3(0.2126, 0.7152, 0.0722));
+  refl = mix(vec3(rl), refl, 0.72);
+  vec3 deep = mix(uSkyHorizon, uSkyZenith, 0.35) * 0.07 + vec3(0.006, 0.012, 0.012) * (1.0 - uNight * 0.85);
+  deep = mix(deep, vec3(0.045, 0.055, 0.048) * (1.0 - uNight * 0.85), 0.45);     // estuary silt
   vec3 col = mix(deep, refl, fres);
   // sun / moon glitter
   float glit = pow(sd, 380.0) * 26.0 + pow(sd, 60.0) * 0.6;
@@ -356,44 +498,28 @@ export function buildGround(data: CityData): GroundBuild {
     color: 0xffffff, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8,
   }), {
     key: 'road', uniforms: reflUniforms, defines: { FORGE_REFL: 1 },
-    vPars: 'attribute vec4 aRoad; attribute vec2 aRUv; varying vec4 vRoad; varying vec2 vRUv;',
-    vMain: 'vRoad = aRoad; vRUv = aRUv;',
-    fPars: REFL_PARS + '\nvarying vec4 vRoad; varying vec2 vRUv;',
+    vPars: 'attribute vec4 aRoad; attribute vec2 aRUv; attribute vec3 aRoad2; varying vec4 vRoad; varying vec2 vRUv; varying vec3 vRoad2;',
+    vMain: 'vRoad = aRoad; vRUv = aRUv; vRoad2 = aRoad2;',
+    fPars: REFL_PARS + ROAD_PARS + '\nvarying vec4 vRoad; varying vec2 vRUv; varying vec3 vRoad2;',
     fSurface: ROAD_SURFACE,
   });
   reflMaterials.push(roadMat);
-  const roads = data.roads.filter((r) => r.t !== 3 && r.pts.length >= 4);
-  // node → widest half-widths meeting there
-  const nodes = new Map<string, number[]>();
-  const key = (x: number, z: number) => `${Math.round(x / 1.5)},${Math.round(z / 1.5)}`;
-  for (const r of roads) {
-    const n = r.pts.length / 2;
-    for (const e of [0, n - 1]) {
-      const k = key(r.pts[e * 2], r.pts[e * 2 + 1]);
-      if (!nodes.has(k)) nodes.set(k, []);
-      nodes.get(k)!.push(r.w / 2);
-    }
-  }
+  // junction geometry shared with the sidewalks and props: where each crossing roadway's kerb line meets this one
+  const { roads, J: junctions } = streetNet(data.roads);
   const TILE = 2500;
-  const tiles = new Map<string, { pos: number[]; ruv: number[]; road: number[]; idx: number[] }>();
-  for (const r of roads) {
+  const tiles = new Map<string, { pos: number[]; ruv: number[]; road: number[]; road2: number[]; idx: number[] }>();
+  roads.forEach((r, ri) => {
     const n = r.pts.length / 2;
     const halfW = r.w / 2;
     let len = 0;
     const cum = [0];
     for (let i = 1; i < n; i++) { len += Math.hypot(r.pts[i * 2] - r.pts[i * 2 - 2], r.pts[i * 2 + 1] - r.pts[i * 2 - 1]); cum.push(len); }
-    if (len < 1) continue;
-    const inset = (e: number) => {
-      const list = nodes.get(key(r.pts[e * 2], r.pts[e * 2 + 1]))!;
-      if (list.length < 3) return -1;
-      // widest *other* road at this node
-      const sorted = [...list].sort((a, b) => b - a);
-      const other = sorted[0] === halfW ? sorted[1] : sorted[0];
-      return Math.min(other, len * 0.45);
-    };
-    const i0 = inset(0), i1 = inset(n - 1);
+    if (len < 1) return;
+    const inset = (e: 0 | 1) => { const v = junctions.roadInset(ri, e); return v < 0 ? -1 : Math.min(v, len * 0.45); };
+    const i0 = inset(0), i1 = inset(1);
+    const dir = roadDir(r), kind = laneKind(r), seed = Math.floor(hash2(ri, 91) * 61);
     const tk = `${Math.floor(r.pts[0] / TILE)},${Math.floor(r.pts[1] / TILE)}`;
-    if (!tiles.has(tk)) tiles.set(tk, { pos: [], ruv: [], road: [], idx: [] });
+    if (!tiles.has(tk)) tiles.set(tk, { pos: [], ruv: [], road: [], road2: [], idx: [] });
     const t = tiles.get(tk)!;
     const base = t.pos.length / 3;
     for (let i = 0; i < n; i++) {
@@ -405,6 +531,7 @@ export function buildGround(data: CityData): GroundBuild {
       t.pos.push(x + nx * halfW, 0.05, z + nz * halfW, x - nx * halfW, 0.05, z - nz * halfW);
       t.ruv.push(halfW, cum[i], -halfW, cum[i]);
       t.road.push(halfW, len, i0, i1, halfW, len, i0, i1);
+      t.road2.push(dir, seed, kind, dir, seed, kind);
       if (i < n - 1) { const a = base + i * 2; t.idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
       // raster the roadway into the grid
       if (i < n - 1) {
@@ -412,7 +539,7 @@ export function buildGround(data: CityData): GroundBuild {
         for (let s = 0; s <= sl; s += 2.5) grid.stamp(grid.road, x + (sx / sl) * s, z + (sz / sl) * s, halfW);
       }
     }
-  }
+  });
   for (const t of tiles.values()) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(t.pos, 3));
@@ -420,12 +547,18 @@ export function buildGround(data: CityData): GroundBuild {
     g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
     g.setAttribute('aRUv', new THREE.Float32BufferAttribute(t.ruv, 2));
     g.setAttribute('aRoad', new THREE.Float32BufferAttribute(t.road, 4));
+    g.setAttribute('aRoad2', new THREE.Float32BufferAttribute(t.road2, 3));
     g.setIndex(t.idx);
     const m = new THREE.Mesh(g, roadMat);
     m.receiveShadow = true;
     m.layers.set(1);
     group.add(m);
   }
+
+  // ---- raised sidewalks & granite kerbs along Manhattan streets
+  const swMat = sidewalkMaterial(REFL_PARS, reflUniforms);
+  reflMaterials.push(swMat);
+  for (const m of buildSidewalks(roads, junctions, swMat, TILE)) group.add(m);
 
   // ---- occupancy from real buildings
   for (const b of data.buildings) grid.fillPoly(grid.occ, b.pts, b.minX, b.maxX, b.minZ, b.maxZ);
@@ -437,123 +570,5 @@ export function buildGround(data: CityData): GroundBuild {
   return { group, grid, landPolys, waterMaterial, reflMaterials, isLand };
 }
 
-// ---- trees ---------------------------------------------------------------------
-
-function treeGeometry(hi: boolean): THREE.BufferGeometry {
-  // a clumped canopy (one main mass + two satellite lobes) on a short trunk; vertex colours shade the underside
-  const pos: number[] = [], col: number[] = [], nrm: number[] = [], idx: number[] = [];
-  const v = new THREE.Vector3(), n = new THREE.Vector3();
-  const lobe = (detail: number, r: number, cx: number, cy: number, cz: number, seed: number) => {
-    const g = new THREE.IcosahedronGeometry(1, detail);
-    const p = g.attributes.position as THREE.BufferAttribute;
-    const base = pos.length / 3;
-    for (let i = 0; i < p.count; i++) {
-      v.fromBufferAttribute(p, i);
-      n.copy(v).normalize();
-      const k = (hi ? 0.86 : 0.78) + (hi ? 0.26 : 0.42) * hash2(Math.round(v.x * 50) + seed, Math.round(v.y * 50 + v.z * 91));
-      v.multiplyScalar(k * r); v.y *= 0.82;
-      v.x += cx; v.y += cy; v.z += cz;
-      pos.push(v.x, v.y, v.z);
-      // blend lobe normal with a whole-crown normal so the clump shades as one soft volume
-      n.lerp(new THREE.Vector3(v.x, v.y - 1.7, v.z).normalize(), 0.55).normalize();
-      nrm.push(n.x, n.y, n.z);
-      const sh = 0.5 + 0.6 * Math.min(1, Math.max(0, (v.y - 0.95) / 1.7));
-      col.push(sh, sh, sh);
-    }
-    for (let i = 0; i < p.count; i += 3) idx.push(base + i, base + i + 1, base + i + 2);
-    g.dispose();
-  };
-  lobe(hi ? 2 : 1, 1.0, 0, 1.8, 0, 7);
-  lobe(hi ? 1 : 0, 0.62, 0.72, 1.55, 0.25, 19);
-  lobe(hi ? 1 : 0, 0.58, -0.55, 2.2, -0.5, 31);
-  if (hi) { lobe(1, 0.5, -0.2, 1.45, 0.7, 43); lobe(1, 0.46, 0.35, 2.45, 0.1, 57); }
-  const tr = 0.09;
-  const trunk = [[-tr, -tr], [tr, -tr], [tr, tr], [-tr, tr]];
-  for (let i = 0; i < 4; i++) {
-    const a = trunk[i], b = trunk[(i + 1) % 4];
-    const o = pos.length / 3;
-    pos.push(a[0], 0, a[1], b[0], 0, b[1], b[0], 1.3, b[1], a[0], 1.3, a[1]);
-    const nx = a[0] + b[0], nz = a[1] + b[1], l = Math.hypot(nx, nz) || 1;
-    for (let k = 0; k < 4; k++) { col.push(0.22, 0.17, 0.12); nrm.push(nx / l, 0, nz / l); }
-    idx.push(o, o + 2, o + 1, o, o + 3, o + 2);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setIndex(idx);
-  return g;
-}
-
-export function buildTrees(data: CityData, grid: CityGrid, isLand: (x: number, z: number) => boolean): THREE.Group {
-  const group = new THREE.Group();
-  group.name = 'trees';
-  const geo = treeGeometry(false), geoHi = treeGeometry(true);
-  const lod: { cx: number; cz: number; lo: THREE.InstancedMesh; hi: THREE.InstancedMesh }[] = [];
-  const mat = extendMaterial(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, vertexColors: true, flatShading: false }), { key: 'tree', weather: true });
-  const TILE = 500;
-  const tiles = new Map<string, { m: THREE.Matrix4; c: THREE.Color }[]>();
-  const r = mulberry32(4242);
-  const add = (x: number, z: number, s: number, hue: number) => {
-    const k = `${Math.floor(x / TILE)},${Math.floor(z / TILE)}`;
-    if (!tiles.has(k)) tiles.set(k, []);
-    const m = new THREE.Matrix4().compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), r() * 6.28), new THREE.Vector3(s * (0.85 + 0.3 * r()), s, s * (0.85 + 0.3 * r())));
-    const c = new THREE.Color().setHSL(0.19 + hue * 0.1, 0.3 + 0.2 * r(), 0.13 + 0.08 * r());
-    tiles.get(k)!.push({ m, c });
-  };
-  // park trees
-  for (const p of data.parks) {
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (let i = 0; i < p.pts.length; i += 2) { minX = Math.min(minX, p.pts[i]); maxX = Math.max(maxX, p.pts[i]); minZ = Math.min(minZ, p.pts[i + 1]); maxZ = Math.max(maxZ, p.pts[i + 1]); }
-    const area = (maxX - minX) * (maxZ - minZ);
-    const count = Math.min(5200, Math.floor(area / 230));
-    for (let i = 0; i < count; i++) {
-      const x = minX + r() * (maxX - minX), z = minZ + r() * (maxZ - minZ);
-      if (!pointInPoly(x, z, p.pts) || grid.isRoad(x, z)) continue;
-      // clearings: lawns stay open
-      if (hash2(Math.floor(x / 60), Math.floor(z / 60)) < 0.3) continue;
-      add(x, z, 3.2 + 3.4 * r(), r());
-    }
-  }
-  // street trees along quieter streets (kerb line, both sides)
-  for (const rd of data.roads) {
-    if (rd.t !== 1 || rd.w > 13 || rd.b !== 1) continue;
-    const n = rd.pts.length / 2;
-    for (let i = 0; i < n - 1; i++) {
-      const ax = rd.pts[i * 2], az = rd.pts[i * 2 + 1], bx = rd.pts[i * 2 + 2], bz = rd.pts[i * 2 + 3];
-      const L = Math.hypot(bx - ax, bz - az); if (L < 30) continue;
-      const tx = (bx - ax) / L, tz = (bz - az) / L;
-      if (hash2(Math.round(ax), Math.round(az)) < 0.35) continue;
-      for (let s = 16; s < L - 14; s += 11 + r() * 9) {
-        for (const side of [-1, 1]) {
-          if (r() < 0.4) continue;
-          const x = ax + tx * s - tz * side * (rd.w / 2 + 1.3), z = az + tz * s + tx * side * (rd.w / 2 + 1.3);
-          if (grid.isOcc(x, z)) continue;
-          add(x, z, 2.2 + 1.5 * r(), r());
-        }
-      }
-    }
-  }
-  for (const [key, list] of tiles) {
-    const [ix, iz] = key.split(',').map(Number);
-    const mk = (g: THREE.BufferGeometry) => {
-      const im = new THREE.InstancedMesh(g, mat, list.length);
-      list.forEach((t, i) => { im.setMatrixAt(i, t.m); im.setColorAt(i, t.c); });
-      im.castShadow = true; im.receiveShadow = true;
-      im.computeBoundingSphere();
-      group.add(im);
-      return im;
-    };
-    const lo = mk(geo), hi = mk(geoHi);
-    hi.visible = false;
-    lod.push({ cx: (ix + 0.5) * TILE, cz: (iz + 0.5) * TILE, lo, hi });
-  }
-  // nearby tiles swap to the fuller canopy model
-  group.userData.update = (cam: THREE.Vector3, range: number) => {
-    for (const t of lod) {
-      const near = Math.hypot(t.cx - cam.x, t.cz - cam.z, cam.y) < range + TILE * 0.7;
-      if (t.hi.visible !== near) { t.hi.visible = near; t.lo.visible = !near; }
-    }
-  };
-  return group;
-}
+// ---- trees: see trees.ts (branching trunk + leaf-card canopy, three species, three LODs)
+export { buildTrees } from './trees';

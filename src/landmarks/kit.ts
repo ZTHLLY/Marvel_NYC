@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { extendMaterial, U } from '../engine/materials';
 import { facadeMaterial } from '../city/facade';
 import { MeshBuilder } from '../city/meshBuilder';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import earcut from 'earcut';
 
 /** Superellipse ring (rounded rectangle) with CCW-positive x/z winding. */
 export function superRing(cx: number, cz: number, a: number, b: number, n = 3.2, segs = 56, ang = 0): Float32Array {
@@ -180,3 +182,161 @@ export function panel(w: number, h: number, mat: THREE.Material): THREE.Mesh {
 
 /** yaw (rotation.y) that makes a mesh's local +Z face the horizontal direction (nx, nz). */
 export const yawFacing = (nx: number, nz: number) => Math.atan2(nx, nz);
+
+// ---- hand-modelling helpers (mouldings, profiles, merged prop parts) ---------------------------------
+
+export type V3 = [number, number, number];
+
+/** Triangle with a flat normal; flips the winding so the normal agrees with `want` (if given). */
+export function tri3(mb: MeshBuilder, a: V3, b: V3, c: V3, want?: V3) {
+  const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+  let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+  const l = Math.hypot(nx, ny, nz);
+  if (l < 1e-9) return;
+  nx /= l; ny /= l; nz /= l;
+  let p = a, q = b, r = c;
+  if (want && nx * want[0] + ny * want[1] + nz * want[2] < 0) { q = c; r = b; nx = -nx; ny = -ny; nz = -nz; }
+  const uv = (P: V3): [number, number] => {
+    if (Math.abs(ny) > 0.7) return [P[0], P[2]];
+    const tl = Math.hypot(nx, nz) || 1;
+    return [P[0] * (nz / tl) - P[2] * (nx / tl), P[1]];
+  };
+  const [u0, v0] = uv(p), [u1, v1] = uv(q), [u2, v2] = uv(r);
+  const i0 = mb.vert(p[0], p[1], p[2], nx, ny, nz, u0, v0);
+  const i1 = mb.vert(q[0], q[1], q[2], nx, ny, nz, u1, v1);
+  const i2 = mb.vert(r[0], r[1], r[2], nx, ny, nz, u2, v2);
+  mb.tri(i0, i1, i2);
+}
+
+export function quad3(mb: MeshBuilder, a: V3, b: V3, c: V3, d: V3, want?: V3) {
+  if (!want) {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2];
+    want = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
+  }
+  tri3(mb, a, b, c, want); tri3(mb, a, c, d, want);
+}
+
+/**
+ * Extrude a 2D polygon (flat x,y list, any winding, may be concave) living in the plane spanned by u/v around origin o,
+ * along direction w from t0 to t1. Used for mouldings (profile runs), brackets, keystones, voussoirs, pediments.
+ */
+export function extrude(mb: MeshBuilder, poly: ArrayLike<number>, o: V3, u: V3, v: V3, w: V3, t0: number, t1: number, caps = true) {
+  const n = poly.length / 2;
+  let area = 0;
+  for (let i = 0; i < n; i++) { const j = (i + 1) % n; area += poly[i * 2] * poly[j * 2 + 1] - poly[j * 2] * poly[i * 2 + 1]; }
+  const sgn = area >= 0 ? 1 : -1;
+  const P = (i: number, t: number): V3 => {
+    const a = poly[i * 2], b = poly[i * 2 + 1];
+    return [o[0] + u[0] * a + v[0] * b + w[0] * t, o[1] + u[1] * a + v[1] * b + w[1] * t, o[2] + u[2] * a + v[2] * b + w[2] * t];
+  };
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const ex = poly[j * 2] - poly[i * 2], ey = poly[j * 2 + 1] - poly[i * 2 + 1];
+    const out: V3 = [(u[0] * ey - v[0] * ex) * sgn, (u[1] * ey - v[1] * ex) * sgn, (u[2] * ey - v[2] * ex) * sgn];
+    quad3(mb, P(i, t0), P(j, t0), P(j, t1), P(i, t1), out);
+  }
+  if (!caps) return;
+  const tris = earcut(Array.from(poly));
+  const wn: V3 = t1 >= t0 ? w : [-w[0], -w[1], -w[2]];
+  const wb: V3 = [-wn[0], -wn[1], -wn[2]];
+  for (let k = 0; k < tris.length; k += 3) {
+    tri3(mb, P(tris[k], t1), P(tris[k + 1], t1), P(tris[k + 2], t1), wn);
+    tri3(mb, P(tris[k], t0), P(tris[k + 1], t0), P(tris[k + 2], t0), wb);
+  }
+}
+
+/** Axis-aligned box given by min/max corners (all six faces). */
+export function aabb(mb: MeshBuilder, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, bottom = false) {
+  quad3(mb, [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1]);
+  quad3(mb, [x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, 0, -1]);
+  quad3(mb, [x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [1, 0, 0]);
+  quad3(mb, [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [-1, 0, 0]);
+  quad3(mb, [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], [0, 1, 0]);
+  if (bottom) quad3(mb, [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0]);
+}
+
+/**
+ * Buckets of three.js primitive geometries per material, merged into one mesh each.
+ * Every added geometry is transformed in place (position, Euler rotation, scale) in the caller's local frame.
+ */
+export class Parts {
+  private buckets = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  private m = new THREE.Matrix4(); private q = new THREE.Quaternion(); private e = new THREE.Euler();
+  private s = new THREE.Vector3(); private p = new THREE.Vector3();
+
+  add(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1): THREE.BufferGeometry {
+    this.e.set(rx, ry, rz, 'YXZ'); this.q.setFromEuler(this.e);
+    this.m.compose(this.p.set(x, y, z), this.q, this.s.set(sx, sy, sz));
+    geo.applyMatrix4(this.m);
+    let list = this.buckets.get(mat);
+    if (!list) { list = []; this.buckets.set(mat, list); }
+    list.push(geo);
+    return geo;
+  }
+  /** Centered box. */
+  box(mat: THREE.Material, cx: number, cy: number, cz: number, sx: number, sy: number, sz: number, rx = 0, ry = 0, rz = 0) {
+    return this.add(new THREE.BoxGeometry(sx, sy, sz), mat, cx, cy, cz, rx, ry, rz);
+  }
+  /** Cylinder standing on y0. */
+  cyl(mat: THREE.Material, x: number, y0: number, z: number, r0: number, r1: number, h: number, segs = 10) {
+    return this.add(new THREE.CylinderGeometry(r1, r0, h, segs), mat, x, y0 + h / 2, z);
+  }
+  /** Rod between two points. */
+  rod(mat: THREE.Material, a: V3, b: V3, r: number, segs = 6) {
+    const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    const L = d.length(); if (L < 1e-4) return;
+    const g = new THREE.CylinderGeometry(r, r, L, segs, 1, true);
+    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()));
+    g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+    let list = this.buckets.get(mat);
+    if (!list) { list = []; this.buckets.set(mat, list); }
+    list.push(g);
+  }
+  build(group: THREE.Object3D, shadows = true) {
+    for (const [mat, list] of this.buckets) {
+      const norm = list.map((g) => {
+        let h = g.index ? g.toNonIndexed() : g;
+        if (h !== g) g.dispose();
+        for (const k of Object.keys(h.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') h.deleteAttribute(k);
+        if (!h.attributes.normal) h.computeVertexNormals();
+        if (!h.attributes.uv) h.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(h.attributes.position.count * 2), 2));
+        h.morphAttributes = {};
+        return h;
+      });
+      const merged = mergeGeometries(norm, false);
+      for (const g of norm) g.dispose();
+      if (!merged) continue;
+      merged.computeBoundingSphere();
+      const mesh = new THREE.Mesh(merged, mat);
+      const isLight = (mat as THREE.MeshBasicMaterial).isMeshBasicMaterial || mat.transparent;
+      mesh.castShadow = shadows && !isLight; mesh.receiveShadow = !isLight;
+      group.add(mesh);
+    }
+    this.buckets.clear();
+  }
+}
+
+/** Mesh from a MeshBuilder with an arbitrary (non-facade) material. */
+export function builderMesh(mb: MeshBuilder, mat: THREE.Material, shadows = true): THREE.Mesh {
+  const m = new THREE.Mesh(mb.build(), mat);
+  m.castShadow = shadows; m.receiveShadow = true;
+  return m;
+}
+
+/** Repeating canvas texture (metres → texture via geometry uvs). */
+export function tileTexture(w: number, h: number, draw: (c: CanvasRenderingContext2D, w: number, h: number) => void, srgb = true): THREE.CanvasTexture {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d')!;
+  draw(ctx, w, h);
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+/** Small seeded PRNG for deterministic hand-placed detail. */
+export function prng(seed: number) {
+  let s = seed >>> 0;
+  return () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
